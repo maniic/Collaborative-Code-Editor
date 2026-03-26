@@ -1,4 +1,6 @@
 {
+  "mode": "yolo",
+  "granularity": "standard",
   "model_profile": "quality",
   "commit_docs": true,
   "search_gitignored": false,
@@ -14,6 +16,7 @@
   },
   "parallelization": true,
   "brave_search": false,
+  "resolve_model_ids": "omit",
   "git": {
     "branching_strategy": "none"
   }
