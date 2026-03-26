@@ -27,7 +27,11 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
   2. User with an expired access token can obtain a fresh token without re-entering credentials.
   3. Authenticated user can create a session with a chosen language, list available sessions, join one, and leave cleanly.
   4. Database schema is versioned and applied through Flyway migrations at application startup.
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 01-01-PLAN.md - Bootstrap backend foundation and Flyway schema baseline
+- [ ] 01-02-PLAN.md - Implement JWT auth lifecycle with rotating refresh sessions
+- [ ] 01-03-PLAN.md - Implement session lifecycle APIs with owner transfer and one-hour cleanup
 
 ### Phase 2: Real-Time OT Collaboration
 **Goal**: Session participants can collaborate on a shared document in real time with server-authoritative OT convergence guarantees.
@@ -77,7 +81,7 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Secure Access and Session Lifecycle | 0/TBD | Not started | - |
+| 1. Secure Access and Session Lifecycle | 0/3 | Planned | - |
 | 2. Real-Time OT Collaboration | 0/TBD | Not started | - |
 | 3. Durable Persistence and Multi-Instance Coordination | 0/TBD | Not started | - |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |

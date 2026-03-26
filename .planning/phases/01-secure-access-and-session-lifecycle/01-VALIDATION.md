@@ -1,8 +1,8 @@
 ---
 phase: 1
 slug: secure-access-and-session-lifecycle
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-26
 ---
@@ -38,9 +38,9 @@ created: 2026-03-26
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 01-01-01 | 01 | 0 | QUAL-01 | migration smoke | `./gradlew test --tests "*Migration*"` | ❌ W0 | ⬜ pending |
-| 01-02-01 | 02 | 1 | AUTH-01, AUTH-02, AUTH-03 | unit + controller slice | `./gradlew test --tests "*Auth*"` | ❌ W0 | ⬜ pending |
-| 01-03-01 | 03 | 1 | SESS-01, SESS-02, SESS-03, SESS-04 | service + controller slice | `./gradlew test --tests "*Session*"` | ❌ W0 | ⬜ pending |
+| 01-01-01 | 01 | 1 | QUAL-01 | migration smoke | `./gradlew test --tests "*Migration*"` | ❌ 01-01 | ⬜ pending |
+| 01-02-01 | 02 | 2 | AUTH-01, AUTH-02, AUTH-03 | unit + controller slice | `./gradlew test --tests "*Auth*"` | ❌ 01-01 | ⬜ pending |
+| 01-03-01 | 03 | 3 | SESS-01, SESS-02, SESS-03, SESS-04 | service + controller slice | `./gradlew test --tests "*Session*"` | ❌ 01-02 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -48,10 +48,10 @@ created: 2026-03-26
 
 ## Wave 0 Requirements
 
-- [ ] `build.gradle.kts` — Gradle Spring Boot build with testing dependencies
-- [ ] `src/test/java/.../auth/` — auth-focused unit or slice tests
-- [ ] `src/test/java/.../session/` — session lifecycle tests
-- [ ] `src/main/resources/db/migration/` — Flyway migration baseline
+- [ ] `gradlew` and `build.gradle.kts` — Gradle wrapper and Spring Boot build with testing dependencies
+- [ ] `src/test/resources/application-test.yml` — shared test configuration for migration and slice tests
+- [ ] `src/test/java/.../migration/` — Flyway migration smoke test
+- [ ] `src/main/resources/db/migration/V1__phase1_baseline.sql` — Flyway migration baseline
 
 *If none: "Existing infrastructure covers all phase requirements."*
 
@@ -68,11 +68,11 @@ created: 2026-03-26
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 60s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 60s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-26
