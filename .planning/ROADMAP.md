@@ -39,7 +39,7 @@ Plans:
 **Goal:** Phase 1 auth and session behavior is secure, concurrency-safe, and honestly verifiable before real-time collaboration work begins.
 **Requirements**: AUTH-01, AUTH-02, AUTH-03, SESS-01, SESS-03, SESS-04, QUAL-01
 **Depends on:** Phase 1
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 **Success Criteria** (what must be TRUE):
   1. JWT auth fails fast on insecure configuration, accepts only app-issued tokens, and refresh rotation is single-use under concurrent requests.
@@ -49,7 +49,7 @@ Plans:
 
 Plans:
 - [x] 01.1-01-PLAN.md - Repair schema parity and honest verification baseline
-- [ ] 01.1-02-PLAN.md - Harden JWT validation, refresh rotation, and security test coverage
+- [x] 01.1-02-PLAN.md - Harden JWT validation, refresh rotation, and security test coverage
 - [ ] 01.1-03-PLAN.md - Fix session concurrency, owner transfer, invite-code, and cleanup races
 
 ### Phase 2: Real-Time OT Collaboration
@@ -101,7 +101,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Secure Access and Session Lifecycle | 3/3 | Complete | 2026-03-27 |
-| 01.1. Fix Phase 1 auth, session, and verification gaps | 1/3 | In Progress|  |
+| 01.1. Fix Phase 1 auth, session, and verification gaps | 2/3 | In Progress|  |
 | 2. Real-Time OT Collaboration | 0/TBD | Not started | - |
 | 3. Durable Persistence and Multi-Instance Coordination | 0/TBD | Not started | - |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |

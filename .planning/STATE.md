@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 01.1 planned and ready for execution
-last_updated: "2026-03-27T05:03:33.297Z"
+last_updated: "2026-03-27T05:22:55.161Z"
 last_activity: 2026-03-27
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 17
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 01.1 (fix-phase-1-auth-session-and-verification-gaps) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-27
 
@@ -72,7 +72,7 @@ Recent decisions affecting current work:
 - SecurityProperties record with @ConfigurationProperties for type-safe auth config binding.
 - Refresh tokens are 32-byte SecureRandom Base64URL; only SHA-256 hex digest is persisted.
 - Device ID is UUID.randomUUID per login; preserved across rotations for reuse detection scope.
-- TestSecurityConfig permits all in @WebMvcTest slices to isolate controller testing.
+- Controller slices now use the production SecurityConfig and bearer filter chain; blanket permitAll test bypasses were removed.
 - Invite codes use [A-Z2-9]{8} charset via SecureRandom (excludes 0, 1, I, O for readability).
 - Owner transfer selects earliest joined_at, lexicographically smallest user_id as tiebreaker.
 - Join is idempotent for already-active participants.
@@ -80,6 +80,9 @@ Recent decisions affecting current work:
 - SessionCleanupScheduler runs on configurable fixedDelay (PT5M default).
 - [Phase 01.1]: Mapped coding_sessions.participant_cap to Java short to match PostgreSQL SMALLINT — Keeps the shipped Flyway schema unchanged while making Hibernate validate against the migrated database.
 - [Phase 01.1]: Gradle tests now default to the explicit test profile — Verification no longer depends on implicit local Spring profile selection or missing auth test properties.
+- [Phase 01.1]: SecurityProperties now validates jwt-secret and jwt-issuer at startup — JWT auth should fail closed when config is insecure instead of silently using a fallback secret.
+- [Phase 01.1]: Refresh rotation now locks the refresh session row before issuing a successor token — Concurrent refresh attempts must yield exactly one winner and one reuse failure.
+- [Phase 01.1]: Protected-route security tests now run through the production filter chain and 401 entrypoint — Controller tests should verify the real bearer-token behavior instead of a permitAll test-only chain.
 
 ### Pending Todos
 
