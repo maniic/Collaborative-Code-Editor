@@ -4,13 +4,13 @@ import com.collabeditor.auth.security.SecurityProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -19,10 +19,10 @@ public class JwtTokenService {
     private final SecretKey signingKey;
     private final SecurityProperties securityProperties;
 
-    public JwtTokenService(@Value("${APP_JWT_SECRET:default-dev-secret-that-is-at-least-32-bytes-long}") String secret,
-                           SecurityProperties securityProperties) {
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    public JwtTokenService(SecurityProperties securityProperties) {
         this.securityProperties = securityProperties;
+        this.signingKey = Keys.hmacShaKeyFor(
+                securityProperties.jwtSecret().getBytes(StandardCharsets.UTF_8));
     }
 
     /**
@@ -33,7 +33,7 @@ public class JwtTokenService {
         Instant expiry = now.plus(securityProperties.accessTokenTtl());
 
         return Jwts.builder()
-                .issuer("collaborative-code-editor")
+                .issuer(securityProperties.jwtIssuer())
                 .subject(userId.toString())
                 .claim("email", email)
                 .issuedAt(Date.from(now))
@@ -44,17 +44,22 @@ public class JwtTokenService {
 
     /**
      * Parse and validate a JWT, returning its claims.
-     * Returns null if the token is invalid or expired.
+     * Returns an empty result if the token is invalid, expired, or carries the wrong claims.
      */
-    public Claims parseToken(String token) {
+    public Optional<Claims> parseToken(String token) {
         try {
-            return Jwts.parser()
+            Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+            if (!securityProperties.jwtIssuer().equals(claims.getIssuer())) {
+                return Optional.empty();
+            }
+            UUID.fromString(claims.getSubject());
+            return Optional.of(claims);
         } catch (Exception e) {
-            return null;
+            return Optional.empty();
         }
     }
 

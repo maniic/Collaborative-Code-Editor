@@ -16,6 +16,8 @@ spring:
 
 app:
   security:
+    jwt-secret: ${APP_JWT_SECRET:}
+    jwt-issuer: collaborative-code-editor
     access-token-ttl: PT15M
     refresh-token-ttl: P30D
     refresh-cookie-name: ccd_refresh_token

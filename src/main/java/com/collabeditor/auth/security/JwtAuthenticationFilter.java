@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -35,20 +36,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
             String token = authHeader.substring(BEARER_PREFIX.length());
-            Claims claims = jwtTokenService.parseToken(token);
+            Optional<Claims> claimsResult = jwtTokenService.parseToken(token);
 
-            if (claims != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UUID userId = UUID.fromString(claims.getSubject());
+            if (claimsResult.isPresent() && SecurityContextHolder.getContext().getAuthentication() == null) {
+                Claims claims = claimsResult.get();
+                Optional<UUID> userId = parseSubject(claims.getSubject());
                 String email = claims.get("email", String.class);
 
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userId, email, List.of());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                if (userId.isPresent()) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userId.get(), email, List.of());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private Optional<UUID> parseSubject(String subject) {
+        try {
+            return Optional.of(UUID.fromString(subject));
+        } catch (RuntimeException ex) {
+            return Optional.empty();
+        }
     }
 }

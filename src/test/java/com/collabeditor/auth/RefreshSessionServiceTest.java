@@ -35,6 +35,8 @@ class RefreshSessionServiceTest {
     @BeforeEach
     void setUp() {
         SecurityProperties props = new SecurityProperties(
+                "test-jwt-secret-must-be-at-least-32-bytes-long!!",
+                "collaborative-code-editor",
                 Duration.ofMinutes(15),
                 Duration.ofDays(30),
                 "ccd_refresh_token",
