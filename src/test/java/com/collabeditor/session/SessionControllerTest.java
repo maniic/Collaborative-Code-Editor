@@ -161,6 +161,19 @@ class SessionControllerTest {
     }
 
     @Test
+    void shouldRejectInvalidLanguageWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/sessions")
+                        .with(authentication(authToken(userId)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("language", "RUBY"))))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(sessionService);
+    }
+
+    @Test
     void shouldJoinRejoinedSessionBeforeCleanupAfterOwnerTransfer() throws Exception {
         UUID userId = UUID.randomUUID();
         UUID ownerUserId = UUID.randomUUID();

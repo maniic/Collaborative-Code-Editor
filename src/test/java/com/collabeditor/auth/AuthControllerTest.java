@@ -27,6 +27,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -168,6 +169,42 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void shouldReturn400ForMalformedInviteCodeWithValidBearerToken() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String token = jwtTokenService.createAccessToken(userId, "test@example.com");
+
+        mockMvc.perform(post("/api/sessions/join")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "bad-code"))))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(sessionService);
+    }
+
+    @Test
+    void shouldReturn400ForInvalidLanguageWithValidBearerToken() throws Exception {
+        UUID userId = UUID.randomUUID();
+        String token = jwtTokenService.createAccessToken(userId, "test@example.com");
+
+        mockMvc.perform(post("/api/sessions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("language", "RUBY"))))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(sessionService);
+    }
+
+    @Test
+    void shouldKeepProtectedPostRouteUnauthorizedWithoutBearerToken() throws Exception {
+        mockMvc.perform(post("/api/sessions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("language", "RUBY"))))
+                .andExpect(status().isUnauthorized());
     }
 
     @TestConfiguration
