@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: ${APP_DB_URL:jdbc:postgresql://localhost:5432/collabeditor}
+    username: ${APP_DB_USERNAME:collabeditor}
+    password: ${APP_DB_PASSWORD:collabeditor}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    locations: classpath:db/migration
+    enabled: true
