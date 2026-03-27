@@ -8,6 +8,10 @@ A real-time collaborative code editor backend built in Java with Spring Boot 3. 
 
 The OT engine must guarantee document convergence — when multiple users edit simultaneously, every participant ends up with the same document, every time, with zero conflicts.
 
+## Current State
+
+Phase 01.1 is complete. The auth and session baseline now fails closed on insecure JWT configuration, keeps refresh/session mutations deterministic under concurrency, and has a green Docker-backed verification path. Phase 2 is unblocked.
+
 ## Requirements
 
 ### Validated
@@ -84,4 +88,4 @@ Session model: each session is a room identified by UUID, with a programming lan
 | Multi-character operations | Operations carry position + string (not single-char) — reduces message volume, handles paste/bulk-delete naturally, more realistic for a real editor | — Pending |
 
 ---
-*Last updated: 2026-03-26 after initialization*
+*Last updated: 2026-03-27 after Phase 01.1 completion*
