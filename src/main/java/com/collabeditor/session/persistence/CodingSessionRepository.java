@@ -14,6 +14,8 @@ public interface CodingSessionRepository extends JpaRepository<CodingSessionEnti
 
     Optional<CodingSessionEntity> findByInviteCode(String inviteCode);
 
+    boolean existsByInviteCode(String inviteCode);
+
     @Query("""
         SELECT cs FROM CodingSessionEntity cs
         WHERE cs.ownerUserId = :userId

@@ -21,6 +21,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -165,7 +166,7 @@ class SessionServiceTest {
     void shouldRejectJoinWhenRoomIsFull() {
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        String inviteCode = "FULL1234";
+        String inviteCode = "FULL2345";
 
         CodingSessionEntity session = new CodingSessionEntity(sessionId, inviteCode, "PYTHON", UUID.randomUUID(), 12);
         when(codingSessionRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(session));
@@ -200,5 +201,62 @@ class SessionServiceTest {
         assertThat(session.getEmptySince()).isNull();
         assertThat(session.getCleanupAfter()).isNull();
         assertThat(leftParticipant.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void shouldRejectMalformedInviteCodeBeforeLookup() {
+        UUID userId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> sessionService.joinSession(userId, "bad-code"))
+                .isInstanceOf(SessionService.InvalidInviteCodeException.class)
+                .hasMessageContaining("[A-Z2-9]{8}");
+
+        verify(codingSessionRepository, never()).findByInviteCode(anyString());
+    }
+
+    @Test
+    void shouldNormalizeUppercaseInviteCodeBeforeLookup() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        CodingSessionEntity session = new CodingSessionEntity(sessionId, "JOIN2345", "JAVA", UUID.randomUUID(), 12);
+
+        when(codingSessionRepository.findByInviteCode("JOIN2345")).thenReturn(Optional.of(session));
+        when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.empty());
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(0L, 1L);
+        when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SessionResponse response = sessionService.joinSession(userId, "join2345");
+
+        assertThat(response.inviteCode()).isEqualTo("JOIN2345");
+        verify(codingSessionRepository).findByInviteCode("JOIN2345");
+    }
+
+    @Test
+    void shouldRetryInviteCodeCollisionUntilUniqueCodeIsAvailable() {
+        UUID userId = UUID.randomUUID();
+        SessionService collisionAwareService = new SessionService(codingSessionRepository, participantRepository, 12) {
+            private final java.util.Iterator<String> inviteCodes =
+                    java.util.List.of("COLL2222", "UNIQ2222").iterator();
+
+            @Override
+            protected String generateInviteCode() {
+                return inviteCodes.next();
+            }
+        };
+
+        when(codingSessionRepository.existsByInviteCode("COLL2222")).thenReturn(true);
+        when(codingSessionRepository.existsByInviteCode("UNIQ2222")).thenReturn(false);
+        when(codingSessionRepository.save(any(CodingSessionEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(participantRepository.save(any(SessionParticipantEntity.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(participantRepository.countBySessionIdAndStatus(any(), eq("ACTIVE")))
+                .thenReturn(1L);
+
+        SessionResponse created = collisionAwareService.createSession(userId, "JAVA");
+
+        assertThat(created.inviteCode()).isEqualTo("UNIQ2222");
+        verify(codingSessionRepository).existsByInviteCode("COLL2222");
+        verify(codingSessionRepository).existsByInviteCode("UNIQ2222");
     }
 }

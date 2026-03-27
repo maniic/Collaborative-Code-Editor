@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -92,29 +93,29 @@ class SessionControllerTest {
     void shouldJoinSessionByInviteCode() throws Exception {
         UUID userId = UUID.randomUUID();
         SessionResponse response = new SessionResponse(
-                UUID.randomUUID(), "JOIN1234", "JAVA", UUID.randomUUID(), 12, 3, Instant.now());
+                UUID.randomUUID(), "JOIN2345", "JAVA", UUID.randomUUID(), 12, 3, Instant.now());
 
-        when(sessionService.joinSession(eq(userId), eq("JOIN1234"))).thenReturn(response);
+        when(sessionService.joinSession(eq(userId), eq("JOIN2345"))).thenReturn(response);
 
         mockMvc.perform(post("/api/sessions/join")
                         .with(authentication(authToken(userId)))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "JOIN1234"))))
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "JOIN2345"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.inviteCode").value("JOIN1234"));
+                .andExpect(jsonPath("$.inviteCode").value("JOIN2345"));
     }
 
     @Test
     void shouldRejectJoinWhenRoomIsFull() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        when(sessionService.joinSession(eq(userId), eq("FULL1234")))
+        when(sessionService.joinSession(eq(userId), eq("FULL2345")))
                 .thenThrow(new SessionService.SessionFullException("Session is full (cap: 12)"));
 
         mockMvc.perform(post("/api/sessions/join")
                         .with(authentication(authToken(userId)))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "FULL1234"))))
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "FULL2345"))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -135,14 +136,27 @@ class SessionControllerTest {
     void shouldReturnNotFoundForNonexistentSession() throws Exception {
         UUID userId = UUID.randomUUID();
 
-        when(sessionService.joinSession(eq(userId), eq("NOPE1234")))
+        when(sessionService.joinSession(eq(userId), eq("NOPE2345")))
                 .thenThrow(new SessionService.SessionNotFoundException("Session not found"));
 
         mockMvc.perform(post("/api/sessions/join")
                         .with(authentication(authToken(userId)))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "NOPE1234"))))
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "NOPE2345"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void shouldRejectMalformedInviteCodeWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/api/sessions/join")
+                        .with(authentication(authToken(userId)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "bad-code"))))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(sessionService);
     }
 }

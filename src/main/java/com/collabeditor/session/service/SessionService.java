@@ -5,22 +5,27 @@ import com.collabeditor.session.persistence.CodingSessionRepository;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.session.persistence.entity.CodingSessionEntity;
 import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class SessionService {
 
     private static final String INVITE_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final int INVITE_CODE_LENGTH = 8;
+    private static final int INVITE_CODE_MAX_ATTEMPTS = 5;
     private static final Set<String> VALID_LANGUAGES = Set.of("JAVA", "PYTHON");
+    private static final Pattern INVITE_CODE_PATTERN = Pattern.compile("[A-Z2-9]{8}");
 
     private final CodingSessionRepository codingSessionRepository;
     private final SessionParticipantRepository participantRepository;
@@ -41,18 +46,13 @@ public class SessionService {
             throw new InvalidLanguageException("Language must be JAVA or PYTHON");
         }
 
-        String inviteCode = generateInviteCode();
-        UUID sessionId = UUID.randomUUID();
-
-        CodingSessionEntity session = new CodingSessionEntity(
-                sessionId, inviteCode, language, userId, participantCap);
-        codingSessionRepository.save(session);
+        CodingSessionEntity session = createSessionWithUniqueInviteCode(userId, language);
 
         SessionParticipantEntity ownerParticipant = new SessionParticipantEntity(
-                sessionId, userId, "OWNER", "ACTIVE");
+                session.getId(), userId, "OWNER", "ACTIVE");
         participantRepository.save(ownerParticipant);
 
-        long activeCount = participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE");
+        long activeCount = participantRepository.countBySessionIdAndStatus(session.getId(), "ACTIVE");
 
         return toResponse(session, activeCount);
     }
@@ -71,8 +71,9 @@ public class SessionService {
 
     @Transactional
     public SessionResponse joinSession(UUID userId, String inviteCode) {
-        CodingSessionEntity session = codingSessionRepository.findByInviteCode(inviteCode)
-                .orElseThrow(() -> new SessionNotFoundException("Session not found for invite code: " + inviteCode));
+        String normalizedInviteCode = normalizeInviteCode(inviteCode);
+        CodingSessionEntity session = codingSessionRepository.findByInviteCode(normalizedInviteCode)
+                .orElseThrow(() -> new SessionNotFoundException("Session not found for invite code: " + normalizedInviteCode));
 
         // Idempotent: if already active, return existing session
         var existing = participantRepository.findBySessionIdAndUserId(session.getId(), userId);
@@ -145,7 +146,7 @@ public class SessionService {
         }
     }
 
-    private String generateInviteCode() {
+    protected String generateInviteCode() {
         // Generate invite code matching regex [A-Z2-9]{8} using SecureRandom
         StringBuilder sb = new StringBuilder(INVITE_CODE_LENGTH);
         for (int i = 0; i < INVITE_CODE_LENGTH; i++) {
@@ -177,5 +178,39 @@ public class SessionService {
 
     public static class InvalidLanguageException extends RuntimeException {
         public InvalidLanguageException(String message) { super(message); }
+    }
+
+    public static class InvalidInviteCodeException extends RuntimeException {
+        public InvalidInviteCodeException(String message) { super(message); }
+    }
+
+    private CodingSessionEntity createSessionWithUniqueInviteCode(UUID userId, String language) {
+        for (int attempt = 1; attempt <= INVITE_CODE_MAX_ATTEMPTS; attempt++) {
+            String inviteCode = generateInviteCode();
+            if (codingSessionRepository.existsByInviteCode(inviteCode)) {
+                continue;
+            }
+
+            CodingSessionEntity session = new CodingSessionEntity(
+                    UUID.randomUUID(), inviteCode, language, userId, participantCap);
+            try {
+                return codingSessionRepository.save(session);
+            } catch (DataIntegrityViolationException ex) {
+                if (attempt == INVITE_CODE_MAX_ATTEMPTS) {
+                    throw new IllegalStateException("Unable to generate a unique invite code", ex);
+                }
+            }
+        }
+        throw new IllegalStateException("Unable to generate a unique invite code");
+    }
+
+    private String normalizeInviteCode(String inviteCode) {
+        String normalizedInviteCode = inviteCode == null
+                ? ""
+                : inviteCode.trim().toUpperCase(Locale.ROOT);
+        if (!INVITE_CODE_PATTERN.matcher(normalizedInviteCode).matches()) {
+            throw new InvalidInviteCodeException("Invite code must match [A-Z2-9]{8}");
+        }
+        return normalizedInviteCode;
     }
 }
