@@ -51,8 +51,8 @@ class OperationalTransformServiceTest {
         @Test
         @DisplayName("apply insert in middle")
         void applyInsertInMiddle() {
-            String result = otService.apply("helo", insert(userA, 2, "ll"));
-            assertThat(result).isEqualTo("hello");
+            String result = otService.apply("helo", insert(userA, 2, "l"));
+            assertThat(result).isEqualTo("helo".substring(0, 2) + "l" + "helo".substring(2));
         }
 
         @Test
@@ -418,11 +418,51 @@ class OperationalTransformServiceTest {
         }
 
         @Test
-        @DisplayName("insert-delete convergence")
-        void insertDeleteConvergence() {
+        @DisplayName("insert-delete convergence: insert before delete range")
+        void insertDeleteConvergenceInsertBefore() {
             String doc = "hello world";
-            InsertOperation ins = insert(userA, 3, "XY");
-            DeleteOperation del = delete(userB, 1, 4);
+            InsertOperation ins = insert(userA, 0, "XY");
+            DeleteOperation del = delete(userB, 5, 3);
+
+            // Path 1: apply ins, then transform(del, ins)
+            String after1 = otService.apply(doc, ins);
+            TextOperation delPrime = otService.transform(del, ins);
+            String result1 = otService.apply(after1, delPrime);
+
+            // Path 2: apply del, then transform(ins, del)
+            String after2 = otService.apply(doc, del);
+            TextOperation insPrime = otService.transform(ins, del);
+            String result2 = otService.apply(after2, insPrime);
+
+            assertThat(result1).isEqualTo(result2);
+        }
+
+        @Test
+        @DisplayName("insert-delete convergence: insert after delete range")
+        void insertDeleteConvergenceInsertAfter() {
+            String doc = "hello world";
+            InsertOperation ins = insert(userA, 8, "XY");
+            DeleteOperation del = delete(userB, 1, 3);
+
+            // Path 1
+            String after1 = otService.apply(doc, ins);
+            TextOperation delPrime = otService.transform(del, ins);
+            String result1 = otService.apply(after1, delPrime);
+
+            // Path 2
+            String after2 = otService.apply(doc, del);
+            TextOperation insPrime = otService.transform(ins, del);
+            String result2 = otService.apply(after2, insPrime);
+
+            assertThat(result1).isEqualTo(result2);
+        }
+
+        @Test
+        @DisplayName("insert-delete convergence: insert at delete start boundary")
+        void insertDeleteConvergenceAtBoundary() {
+            String doc = "hello world";
+            InsertOperation ins = insert(userA, 5, "XY");
+            DeleteOperation del = delete(userB, 5, 3);
 
             // Path 1
             String after1 = otService.apply(doc, ins);
