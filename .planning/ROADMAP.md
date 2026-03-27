@@ -11,6 +11,7 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
 - [x] **Phase 1: Secure Access and Session Lifecycle** - Users can authenticate and manage collaboration sessions through protected APIs.
+- [ ] **Phase 01.1: Fix Phase 1 auth, session, and verification gaps (INSERTED)** - Remediate security, concurrency, and verification issues discovered during Phase 1 review before Phase 2 begins.
 - [ ] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence.
 - [ ] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances.
 - [ ] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments.
@@ -33,9 +34,27 @@ Plans:
 - [x] 01-02-PLAN.md - Implement JWT auth lifecycle with rotating refresh sessions
 - [x] 01-03-PLAN.md - Implement session lifecycle APIs with owner transfer and one-hour cleanup
 
+### Phase 01.1: Fix Phase 1 auth, session, and verification gaps (INSERTED)
+
+**Goal:** Phase 1 auth and session behavior is secure, concurrency-safe, and honestly verifiable before real-time collaboration work begins.
+**Requirements**: AUTH-01, AUTH-02, AUTH-03, SESS-01, SESS-03, SESS-04, QUAL-01
+**Depends on:** Phase 1
+**Plans:** 3 plans
+
+**Success Criteria** (what must be TRUE):
+  1. JWT auth fails fast on insecure configuration, accepts only app-issued tokens, and refresh rotation is single-use under concurrent requests.
+  2. Session join, leave, ownership transfer, and cleanup logic maintain a single coherent owner and do not violate participant-cap or cleanup guarantees under concurrent mutations.
+  3. Session creation and join paths handle malformed invite codes and invite-code collisions deterministically.
+  4. The Flyway/JPA contract and full Phase 1 verification path are green on a supported runtime and Docker setup.
+
+Plans:
+- [ ] 01.1-01-PLAN.md - Repair schema parity and honest verification baseline
+- [ ] 01.1-02-PLAN.md - Harden JWT validation, refresh rotation, and security test coverage
+- [ ] 01.1-03-PLAN.md - Fix session concurrency, owner transfer, invite-code, and cleanup races
+
 ### Phase 2: Real-Time OT Collaboration
 **Goal**: Session participants can collaborate on a shared document in real time with server-authoritative OT convergence guarantees.
-**Depends on**: Phase 1
+**Depends on**: Phase 01.1
 **Requirements**: COLL-01, COLL-02, COLL-03, COLL-04, COLL-05, COLL-06, QUAL-02
 **Success Criteria** (what must be TRUE):
   1. Joined session participant can connect over WebSocket and submit insert/delete operations.
@@ -82,6 +101,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Secure Access and Session Lifecycle | 3/3 | Complete | 2026-03-27 |
+| 01.1. Fix Phase 1 auth, session, and verification gaps | 0/3 | Planned | - |
 | 2. Real-Time OT Collaboration | 0/TBD | Not started | - |
 | 3. Durable Persistence and Multi-Instance Coordination | 0/TBD | Not started | - |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |

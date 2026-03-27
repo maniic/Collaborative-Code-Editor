@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 01-03-PLAN.md (Phase 1 complete)
-last_updated: "2026-03-27T04:04:12.563Z"
-last_activity: 2026-03-27 — Completed Plan 01-03 (Session lifecycle APIs)
+status: planning
+stopped_at: Phase 01.1 planned and ready for execution
+last_updated: "2026-03-27T04:43:13Z"
+last_activity: 2026-03-27 — Planned urgent Phase 01.1 remediation into 3 execution plans
 progress:
-  total_phases: 5
+  total_phases: 6
   completed_phases: 1
-  total_plans: 3
+  total_plans: 6
   completed_plans: 3
-  percent: 20
+  percent: 17
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 1 - Secure Access and Session Lifecycle
+**Current focus:** Phase 01.1 - Fix Phase 1 auth, session, and verification gaps
 
 ## Current Position
 
-Phase: 1 of 5 (Secure Access and Session Lifecycle) - COMPLETE
-Plan: 3 of 3 in current phase (all complete)
-Status: Phase 1 complete, ready for Phase 2
-Last activity: 2026-03-27 — Completed Plan 01-03 (Session lifecycle APIs)
+Phase: 01.1 of 6 (Fix Phase 1 auth, session, and verification gaps)
+Plan: 0 of 3 in current phase
+Status: Phase 01.1 is planned and ready to execute; Phase 2 remains blocked until remediation is complete
+Last activity: 2026-03-27 — Planned urgent Phase 01.1 remediation into 3 execution plans
 
-Progress: [██░░░░░░░░] 20%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [██░░░░░░░░] 20%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
+| 01.1. Fix Phase 1 auth, session, and verification gaps | 0 | 0 min | 0 min |
 | 2. Real-Time OT Collaboration | 0 | 0 min | 0 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 0 | 0 min | 0 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
@@ -82,12 +83,17 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 01.1 inserted after Phase 1: Fix Phase 1 auth, session, and verification gaps (URGENT)
+- Phase 01.1 planned into 3 sequential plans: verification baseline, auth hardening, and session lifecycle hardening
+
 ### Blockers/Concerns
 
-- None currently.
+- Phase 2 is intentionally blocked behind Phase 01.1 due to unresolved Phase 1 security, concurrency, and verification issues.
 
 ## Session Continuity
 
-Last session: 2026-03-27T03:56:50Z
-Stopped at: Completed 01-03-PLAN.md (Phase 1 complete)
-Resume file: Phase 2 planning needed
+Last session: 2026-03-27T04:43:13Z
+Stopped at: Phase 01.1 planned and ready for execution
+Resume file: .planning/phases/01.1-fix-phase-1-auth-session-and-verification-gaps/
