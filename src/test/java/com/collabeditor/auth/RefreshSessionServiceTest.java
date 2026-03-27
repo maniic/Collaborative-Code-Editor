@@ -107,6 +107,30 @@ class RefreshSessionServiceTest {
         assertThat(hash).isEqualTo(sha256Hex(rawToken));
     }
 
+    @Test
+    void shouldRejectRefreshTokenReuse() {
+        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        String reusedRawToken = "reused-token";
+        String reusedHash = sha256Hex(reusedRawToken);
+
+        RefreshSessionEntity revokedSession = new RefreshSessionEntity(
+                UUID.randomUUID(), userId, reusedHash, deviceId, "TestBrowser",
+                Instant.now().plusSeconds(86400));
+        // Mark as already revoked (previously rotated)
+        revokedSession.setRevokedAt(Instant.now().minusSeconds(3600));
+        revokedSession.setReplacedBySessionId(UUID.randomUUID());
+
+        when(refreshSessionRepository.findByTokenHash(reusedHash))
+                .thenReturn(Optional.of(revokedSession));
+
+        assertThatThrownBy(() -> refreshSessionService.rotate(reusedRawToken))
+                .isInstanceOf(RefreshSessionService.RefreshTokenReusedException.class);
+
+        // Should also revoke all sessions for this device
+        verify(refreshSessionRepository).revokeByUserIdAndDeviceId(userId, deviceId);
+    }
+
     private String sha256Hex(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
