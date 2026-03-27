@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
+status: executing
 stopped_at: Phase 01.1 planned and ready for execution
-last_updated: "2026-03-27T04:43:13Z"
-last_activity: 2026-03-27 — Planned urgent Phase 01.1 remediation into 3 execution plans
+last_updated: "2026-03-27T05:03:33.297Z"
+last_activity: 2026-03-27
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 17
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 01.1 - Fix Phase 1 auth, session, and verification gaps
+**Current focus:** Phase 01.1 — fix-phase-1-auth-session-and-verification-gaps
 
 ## Current Position
 
-Phase: 01.1 of 6 (Fix Phase 1 auth, session, and verification gaps)
-Plan: 0 of 3 in current phase
-Status: Phase 01.1 is planned and ready to execute; Phase 2 remains blocked until remediation is complete
-Last activity: 2026-03-27 — Planned urgent Phase 01.1 remediation into 3 execution plans
+Phase: 01.1 (fix-phase-1-auth-session-and-verification-gaps) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-03-27
 
 Progress: [██░░░░░░░░] 17%
 
@@ -78,6 +78,8 @@ Recent decisions affecting current work:
 - Join is idempotent for already-active participants.
 - Rejoin clears empty_since/cleanup_after to cancel pending cleanup.
 - SessionCleanupScheduler runs on configurable fixedDelay (PT5M default).
+- [Phase 01.1]: Mapped coding_sessions.participant_cap to Java short to match PostgreSQL SMALLINT — Keeps the shipped Flyway schema unchanged while making Hibernate validate against the migrated database.
+- [Phase 01.1]: Gradle tests now default to the explicit test profile — Verification no longer depends on implicit local Spring profile selection or missing auth test properties.
 
 ### Pending Todos
 
