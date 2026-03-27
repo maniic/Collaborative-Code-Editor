@@ -45,11 +45,16 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    val activeSpringProfile = System.getProperty("spring.profiles.active")
+        ?: System.getenv("SPRING_PROFILES_ACTIVE")
+        ?: "test"
+    systemProperty("spring.profiles.active", activeSpringProfile)
     // Forward Docker host for Testcontainers (supports Colima, Podman, etc.)
     val dockerHost = System.getenv("DOCKER_HOST")
+    val dockerSocketOverride = System.getenv("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE")
     if (!dockerHost.isNullOrBlank()) {
         environment("DOCKER_HOST", dockerHost)
-        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
+        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", dockerSocketOverride ?: "/var/run/docker.sock")
     }
     // Ensure user.home is set so Testcontainers can find ~/.testcontainers.properties
     systemProperty("user.home", System.getProperty("user.home"))
