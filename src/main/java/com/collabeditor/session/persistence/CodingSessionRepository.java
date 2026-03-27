@@ -1,6 +1,8 @@
 package com.collabeditor.session.persistence;
 
 import com.collabeditor.session.persistence.entity.CodingSessionEntity;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,6 +17,14 @@ public interface CodingSessionRepository extends JpaRepository<CodingSessionEnti
     Optional<CodingSessionEntity> findByInviteCode(String inviteCode);
 
     boolean existsByInviteCode(String inviteCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT cs FROM CodingSessionEntity cs WHERE cs.inviteCode = :inviteCode")
+    Optional<CodingSessionEntity> findByInviteCodeForUpdate(@Param("inviteCode") String inviteCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT cs FROM CodingSessionEntity cs WHERE cs.id = :sessionId")
+    Optional<CodingSessionEntity> findByIdForUpdate(@Param("sessionId") UUID sessionId);
 
     @Query("""
         SELECT cs FROM CodingSessionEntity cs

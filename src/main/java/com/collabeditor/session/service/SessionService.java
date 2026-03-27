@@ -72,7 +72,7 @@ public class SessionService {
     @Transactional
     public SessionResponse joinSession(UUID userId, String inviteCode) {
         String normalizedInviteCode = normalizeInviteCode(inviteCode);
-        CodingSessionEntity session = codingSessionRepository.findByInviteCode(normalizedInviteCode)
+        CodingSessionEntity session = codingSessionRepository.findByInviteCodeForUpdate(normalizedInviteCode)
                 .orElseThrow(() -> new SessionNotFoundException("Session not found for invite code: " + normalizedInviteCode));
 
         // Idempotent: if already active, return existing session
@@ -84,8 +84,8 @@ public class SessionService {
 
         // Check participant cap
         long activeCount = participantRepository.countBySessionIdAndStatus(session.getId(), "ACTIVE");
-        if (activeCount >= participantCap) {
-            throw new SessionFullException("Session is full (cap: " + participantCap + ")");
+        if (activeCount >= session.getParticipantCap()) {
+            throw new SessionFullException("Session is full (cap: " + session.getParticipantCap() + ")");
         }
 
         if (existing.isPresent()) {
@@ -94,6 +94,7 @@ public class SessionService {
             participant.setStatus("ACTIVE");
             participant.setLeftAt(null);
             participant.setJoinedAt(Instant.now());
+            participant.setRole(session.getOwnerUserId().equals(userId) ? "OWNER" : "PARTICIPANT");
             participantRepository.save(participant);
         } else {
             // New participant
@@ -109,19 +110,25 @@ public class SessionService {
             codingSessionRepository.save(session);
         }
 
-        long newActiveCount = participantRepository.countBySessionIdAndStatus(session.getId(), "ACTIVE");
-        return toResponse(session, newActiveCount);
+        return toResponse(session, activeCount + 1);
     }
 
     @Transactional
     public void leaveSession(UUID userId, UUID sessionId) {
-        CodingSessionEntity session = codingSessionRepository.findById(sessionId)
+        CodingSessionEntity session = codingSessionRepository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException("Session not found: " + sessionId));
 
         SessionParticipantEntity participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new SessionNotFoundException("Not a participant of session: " + sessionId));
 
+        if ("LEFT".equals(participant.getStatus())) {
+            return;
+        }
+
+        if ("OWNER".equals(participant.getRole())) {
+            participant.setRole("PARTICIPANT");
+        }
         participant.setStatus("LEFT");
         participant.setLeftAt(Instant.now());
         participantRepository.save(participant);
@@ -132,9 +139,12 @@ public class SessionService {
 
         if (activeParticipants.isEmpty()) {
             // Last participant left: set cleanup window
-            session.setEmptySince(Instant.now());
-            session.setCleanupAfter(Instant.now().plusSeconds(3600)); // 1 hour
-            codingSessionRepository.save(session);
+            if (session.getEmptySince() == null) {
+                Instant now = Instant.now();
+                session.setEmptySince(now);
+                session.setCleanupAfter(now.plusSeconds(3600)); // 1 hour
+                codingSessionRepository.save(session);
+            }
         } else if (session.getOwnerUserId().equals(userId)) {
             // Owner left with remaining participants: transfer ownership
             // Deterministic: earliest joined_at, then lexicographically smallest user_id (handled by query ORDER BY)

@@ -14,9 +14,18 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -106,9 +115,9 @@ class SessionServiceTest {
         CodingSessionEntity session = new CodingSessionEntity(sessionId, inviteCode, "JAVA", ownerId, 12);
 
         // --- Join by invite code ---
-        when(codingSessionRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(session));
         when(participantRepository.findBySessionIdAndUserId(sessionId, joinerId)).thenReturn(Optional.empty());
-        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(1L, 2L);
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(1L);
         when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         SessionResponse joinResponse = sessionService.joinSession(joinerId, inviteCode);
@@ -125,7 +134,7 @@ class SessionServiceTest {
         // --- Owner leaves: transfer ownership to joiner ---
         reset(codingSessionRepository, participantRepository);
 
-        when(codingSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByIdForUpdate(sessionId)).thenReturn(Optional.of(session));
         SessionParticipantEntity ownerParticipant = new SessionParticipantEntity(sessionId, ownerId, "OWNER", "ACTIVE");
         ownerParticipant.setJoinedAt(Instant.now().minusSeconds(100));
         when(participantRepository.findBySessionIdAndUserId(sessionId, ownerId)).thenReturn(Optional.of(ownerParticipant));
@@ -145,7 +154,7 @@ class SessionServiceTest {
         // --- Last participant leaves: 1-hour retention ---
         reset(codingSessionRepository, participantRepository);
 
-        when(codingSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByIdForUpdate(sessionId)).thenReturn(Optional.of(session));
         when(participantRepository.findBySessionIdAndUserId(sessionId, joinerId)).thenReturn(Optional.of(joinerParticipant));
         when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of());
         when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -169,7 +178,7 @@ class SessionServiceTest {
         String inviteCode = "FULL2345";
 
         CodingSessionEntity session = new CodingSessionEntity(sessionId, inviteCode, "PYTHON", UUID.randomUUID(), 12);
-        when(codingSessionRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(session));
         when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.empty());
         when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(12L);
 
@@ -190,9 +199,9 @@ class SessionServiceTest {
         SessionParticipantEntity leftParticipant = new SessionParticipantEntity(sessionId, userId, "PARTICIPANT", "LEFT");
         leftParticipant.setLeftAt(Instant.now().minusSeconds(600));
 
-        when(codingSessionRepository.findByInviteCode(inviteCode)).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(session));
         when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(leftParticipant));
-        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(0L, 1L);
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(0L);
         when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
         when(codingSessionRepository.save(any(CodingSessionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -211,7 +220,7 @@ class SessionServiceTest {
                 .isInstanceOf(SessionService.InvalidInviteCodeException.class)
                 .hasMessageContaining("[A-Z2-9]{8}");
 
-        verify(codingSessionRepository, never()).findByInviteCode(anyString());
+        verify(codingSessionRepository, never()).findByInviteCodeForUpdate(anyString());
     }
 
     @Test
@@ -220,15 +229,15 @@ class SessionServiceTest {
         UUID sessionId = UUID.randomUUID();
         CodingSessionEntity session = new CodingSessionEntity(sessionId, "JOIN2345", "JAVA", UUID.randomUUID(), 12);
 
-        when(codingSessionRepository.findByInviteCode("JOIN2345")).thenReturn(Optional.of(session));
+        when(codingSessionRepository.findByInviteCodeForUpdate("JOIN2345")).thenReturn(Optional.of(session));
         when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.empty());
-        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(0L, 1L);
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(0L);
         when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         SessionResponse response = sessionService.joinSession(userId, "join2345");
 
         assertThat(response.inviteCode()).isEqualTo("JOIN2345");
-        verify(codingSessionRepository).findByInviteCode("JOIN2345");
+        verify(codingSessionRepository).findByInviteCodeForUpdate("JOIN2345");
     }
 
     @Test
@@ -258,5 +267,129 @@ class SessionServiceTest {
         assertThat(created.inviteCode()).isEqualTo("UNIQ2222");
         verify(codingSessionRepository).existsByInviteCode("COLL2222");
         verify(codingSessionRepository).existsByInviteCode("UNIQ2222");
+    }
+
+    @Test
+    void shouldAllowOnlyOneJoinIntoNearlyFullRoomRace() throws Exception {
+        UUID firstUserId = UUID.randomUUID();
+        UUID secondUserId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String inviteCode = "RACE2345";
+
+        CodingSessionEntity session = new CodingSessionEntity(sessionId, inviteCode, "JAVA", UUID.randomUUID(), 12);
+        AtomicInteger activeParticipants = new AtomicInteger(11);
+        ReentrantLock sessionLock = new ReentrantLock();
+        List<SessionParticipantEntity> savedParticipants = new ArrayList<>();
+
+        when(codingSessionRepository.findByInviteCodeForUpdate(inviteCode)).thenAnswer(invocation -> {
+            sessionLock.lock();
+            return Optional.of(session);
+        });
+        when(participantRepository.findBySessionIdAndUserId(eq(sessionId), any(UUID.class)))
+                .thenReturn(Optional.empty());
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenAnswer(invocation -> {
+            int currentCount = activeParticipants.get();
+            if (currentCount >= session.getParticipantCap() && sessionLock.isHeldByCurrentThread()) {
+                sessionLock.unlock();
+            }
+            return (long) currentCount;
+        });
+        when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(invocation -> {
+            SessionParticipantEntity participant = invocation.getArgument(0);
+            savedParticipants.add(participant);
+            activeParticipants.incrementAndGet();
+            sessionLock.unlock();
+            return participant;
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try {
+            Future<SessionResponse> first = executor.submit(() -> joinAfterBarrier(barrier, firstUserId, inviteCode));
+            Future<SessionResponse> second = executor.submit(() -> joinAfterBarrier(barrier, secondUserId, inviteCode));
+
+            int successCount = 0;
+            int fullCount = 0;
+            for (Future<SessionResponse> future : List.of(first, second)) {
+                try {
+                    future.get(5, TimeUnit.SECONDS);
+                    successCount++;
+                } catch (ExecutionException ex) {
+                    assertThat(ex.getCause()).isInstanceOf(SessionService.SessionFullException.class);
+                    fullCount++;
+                }
+            }
+
+            assertThat(successCount).isEqualTo(1);
+            assertThat(fullCount).isEqualTo(1);
+            assertThat(activeParticipants.get()).isEqualTo(12);
+            assertThat(savedParticipants).hasSize(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldKeepSingleOwnerWhenPreviousOwnerRejoins() {
+        UUID ownerId = UUID.randomUUID();
+        UUID newOwnerId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        String inviteCode = "OWNR2345";
+
+        CodingSessionEntity session = new CodingSessionEntity(sessionId, inviteCode, "JAVA", ownerId, 12);
+        SessionParticipantEntity ownerParticipant = new SessionParticipantEntity(sessionId, ownerId, "OWNER", "ACTIVE");
+        SessionParticipantEntity newOwnerParticipant = new SessionParticipantEntity(sessionId, newOwnerId, "PARTICIPANT", "ACTIVE");
+        newOwnerParticipant.setJoinedAt(Instant.now().minusSeconds(30));
+
+        when(codingSessionRepository.findByIdForUpdate(sessionId)).thenReturn(Optional.of(session));
+        when(participantRepository.findBySessionIdAndUserId(sessionId, ownerId)).thenReturn(Optional.of(ownerParticipant));
+        when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of(newOwnerParticipant));
+        when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(codingSessionRepository.save(any(CodingSessionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        sessionService.leaveSession(ownerId, sessionId);
+
+        ownerParticipant.setStatus("LEFT");
+        ownerParticipant.setRole("PARTICIPANT");
+        when(codingSessionRepository.findByInviteCodeForUpdate(inviteCode)).thenReturn(Optional.of(session));
+        when(participantRepository.findBySessionIdAndUserId(sessionId, ownerId)).thenReturn(Optional.of(ownerParticipant));
+        when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE")).thenReturn(1L);
+
+        SessionResponse response = sessionService.joinSession(ownerId, inviteCode);
+
+        assertThat(session.getOwnerUserId()).isEqualTo(newOwnerId);
+        assertThat(ownerParticipant.getRole()).isEqualTo("PARTICIPANT");
+        assertThat(ownerParticipant.getStatus()).isEqualTo("ACTIVE");
+        assertThat(newOwnerParticipant.getRole()).isEqualTo("OWNER");
+        assertThat(response.ownerUserId()).isEqualTo(newOwnerId);
+    }
+
+    @Test
+    void shouldNotExtendCleanupWindowOnRepeatedLeave() {
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        CodingSessionEntity session = new CodingSessionEntity(sessionId, "LEFT234", "JAVA", userId, 12);
+        SessionParticipantEntity participant = new SessionParticipantEntity(sessionId, userId, "OWNER", "ACTIVE");
+
+        when(codingSessionRepository.findByIdForUpdate(sessionId)).thenReturn(Optional.of(session));
+        when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(participant));
+        when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of());
+        when(participantRepository.save(any(SessionParticipantEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(codingSessionRepository.save(any(CodingSessionEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        sessionService.leaveSession(userId, sessionId);
+        Instant firstCleanupAfter = session.getCleanupAfter();
+        Instant firstEmptySince = session.getEmptySince();
+
+        sessionService.leaveSession(userId, sessionId);
+
+        assertThat(session.getCleanupAfter()).isEqualTo(firstCleanupAfter);
+        assertThat(session.getEmptySince()).isEqualTo(firstEmptySince);
+        verify(codingSessionRepository, times(1)).save(session);
+    }
+
+    private SessionResponse joinAfterBarrier(CyclicBarrier barrier, UUID userId, String inviteCode) throws Exception {
+        barrier.await(5, TimeUnit.SECONDS);
+        return sessionService.joinSession(userId, inviteCode);
     }
 }
