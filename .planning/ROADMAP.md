@@ -10,7 +10,7 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 1: Secure Access and Session Lifecycle** - Users can authenticate and manage collaboration sessions through protected APIs.
+- [x] **Phase 1: Secure Access and Session Lifecycle** - Users can authenticate and manage collaboration sessions through protected APIs.
 - [ ] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence.
 - [ ] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances.
 - [ ] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments.
@@ -30,8 +30,8 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 **Plans**: 3 plans
 Plans:
 - [x] 01-01-PLAN.md - Bootstrap backend foundation and Flyway schema baseline
-- [ ] 01-02-PLAN.md - Implement JWT auth lifecycle with rotating refresh sessions
-- [ ] 01-03-PLAN.md - Implement session lifecycle APIs with owner transfer and one-hour cleanup
+- [x] 01-02-PLAN.md - Implement JWT auth lifecycle with rotating refresh sessions
+- [x] 01-03-PLAN.md - Implement session lifecycle APIs with owner transfer and one-hour cleanup
 
 ### Phase 2: Real-Time OT Collaboration
 **Goal**: Session participants can collaborate on a shared document in real time with server-authoritative OT convergence guarantees.
@@ -81,7 +81,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Secure Access and Session Lifecycle | 2/3 | In Progress|  |
+| 1. Secure Access and Session Lifecycle | 3/3 | Complete | 2026-03-27 |
 | 2. Real-Time OT Collaboration | 0/TBD | Not started | - |
 | 3. Durable Persistence and Multi-Instance Coordination | 0/TBD | Not started | - |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |

@@ -15,10 +15,10 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 
 ### Sessions
 
-- [ ] **SESS-01**: Authenticated user can create a collaborative coding session with a selected programming language
-- [ ] **SESS-02**: Authenticated user can view the list of available coding sessions
-- [ ] **SESS-03**: Authenticated user can join an existing coding session
-- [ ] **SESS-04**: Session participant can leave a coding session cleanly
+- [x] **SESS-01**: Authenticated user can create a collaborative coding session with a selected programming language
+- [x] **SESS-02**: Authenticated user can view the list of available coding sessions
+- [x] **SESS-03**: Authenticated user can join an existing coding session
+- [x] **SESS-04**: Session participant can leave a coding session cleanly
 
 ### Collaboration
 
@@ -86,10 +86,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUTH-01 | Phase 1 | Complete |
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
-| SESS-01 | Phase 1 | Pending |
-| SESS-02 | Phase 1 | Pending |
-| SESS-03 | Phase 1 | Pending |
-| SESS-04 | Phase 1 | Pending |
+| SESS-01 | Phase 1 | Complete |
+| SESS-02 | Phase 1 | Complete |
+| SESS-03 | Phase 1 | Complete |
+| SESS-04 | Phase 1 | Complete |
 | COLL-01 | Phase 2 | Pending |
 | COLL-02 | Phase 2 | Pending |
 | COLL-03 | Phase 2 | Pending |
