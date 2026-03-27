@@ -45,7 +45,7 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 
 ### Quality & Docs
 
-- [ ] **QUAL-01**: Database schema changes are managed through Flyway migrations
+- [x] **QUAL-01**: Database schema changes are managed through Flyway migrations
 - [ ] **QUAL-02**: The OT engine has comprehensive JUnit 5 tests covering transform edge cases and three-user convergence
 - [ ] **QUAL-03**: Integration tests use Testcontainers to validate persistence, Redis coordination, and execution flows
 - [ ] **DOCS-01**: Developer can start the backend, PostgreSQL, and Redis locally with docker-compose using documented steps
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXEC-02 | Phase 4 | Pending |
 | EXEC-03 | Phase 4 | Pending |
 | EXEC-04 | Phase 4 | Pending |
-| QUAL-01 | Phase 1 | Pending |
+| QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 2 | Pending |
 | QUAL-03 | Phase 5 | Pending |
 | DOCS-01 | Phase 5 | Pending |
