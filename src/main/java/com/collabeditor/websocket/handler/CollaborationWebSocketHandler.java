@@ -212,6 +212,9 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         sendMessage(session, ServerMessageType.operation_ack,
                 new OperationAckPayload(payload.clientOperationId(), result.revision()));
 
+        // Transform all stored presence selection ranges through the canonical operation
+        presenceService.transformSelectionsForSession(sessionId, result.canonicalOperation());
+
         // Build broadcast payload from canonical operation
         OperationAppliedPayload appliedPayload = buildAppliedPayload(userId, result);
 

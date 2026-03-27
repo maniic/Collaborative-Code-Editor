@@ -1,5 +1,8 @@
 package com.collabeditor.websocket.service;
 
+import com.collabeditor.ot.model.DeleteOperation;
+import com.collabeditor.ot.model.InsertOperation;
+import com.collabeditor.ot.model.TextOperation;
 import com.collabeditor.websocket.model.SelectionRange;
 import com.collabeditor.websocket.protocol.ParticipantInfo;
 import org.slf4j.Logger;
@@ -123,6 +126,88 @@ public class PresenceService {
         if (current == null) return;
         sessionMap.put(userId, new ParticipantPresence(
                 current.userId, current.email, current.selection, System.currentTimeMillis()));
+    }
+
+    /**
+     * Transform all stored selection ranges in a session based on a canonical operation.
+     * This ensures cursors/selections stay aligned with the document after edits.
+     *
+     * <p>For inserts: shift affected range edges right by inserted text length.
+     * <p>For deletes: clamp range edges so they never fall outside surviving text.
+     *
+     * @param sessionId the session whose participants' ranges to transform
+     * @param operation the canonical operation that was applied to the document
+     */
+    public void transformSelectionsForSession(UUID sessionId, TextOperation operation) {
+        Map<UUID, ParticipantPresence> sessionMap = sessions.get(sessionId);
+        if (sessionMap == null) return;
+
+        for (Map.Entry<UUID, ParticipantPresence> entry : sessionMap.entrySet()) {
+            ParticipantPresence presence = entry.getValue();
+            if (presence.selection == null) continue;
+
+            SelectionRange transformed = transformRange(presence.selection, operation);
+            sessionMap.put(entry.getKey(), new ParticipantPresence(
+                    presence.userId, presence.email, transformed, presence.lastBroadcastTime));
+        }
+    }
+
+    /**
+     * Transform a single selection range against a canonical operation.
+     */
+    private SelectionRange transformRange(SelectionRange range, TextOperation operation) {
+        if (operation instanceof InsertOperation insert) {
+            return transformRangeForInsert(range, insert);
+        } else if (operation instanceof DeleteOperation delete) {
+            return transformRangeForDelete(range, delete);
+        }
+        return range;
+    }
+
+    private SelectionRange transformRangeForInsert(SelectionRange range, InsertOperation insert) {
+        int insertPos = insert.position();
+        int insertLen = insert.text().length();
+        int newStart = range.start();
+        int newEnd = range.end();
+
+        if (insertPos <= range.start()) {
+            // Insert before or at range start: shift both edges right
+            newStart += insertLen;
+            newEnd += insertLen;
+        } else if (insertPos < range.end()) {
+            // Insert inside range: only shift end right
+            newEnd += insertLen;
+        }
+        // Insert after range: no change
+
+        return new SelectionRange(newStart, newEnd);
+    }
+
+    private SelectionRange transformRangeForDelete(SelectionRange range, DeleteOperation delete) {
+        int delStart = delete.position();
+        int delEnd = delete.position() + delete.length();
+        int newStart = range.start();
+        int newEnd = range.end();
+
+        // Clamp start
+        if (newStart >= delEnd) {
+            // Range start is after delete: shift left by delete length
+            newStart -= delete.length();
+        } else if (newStart > delStart) {
+            // Range start is inside delete: clamp to delete start
+            newStart = delStart;
+        }
+
+        // Clamp end
+        if (newEnd >= delEnd) {
+            // Range end is after delete: shift left by delete length
+            newEnd -= delete.length();
+        } else if (newEnd > delStart) {
+            // Range end is inside delete: clamp to delete start
+            newEnd = delStart;
+        }
+
+        return new SelectionRange(newStart, newEnd);
     }
 
     /**
