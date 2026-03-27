@@ -1,6 +1,7 @@
 package com.collabeditor.ot.service;
 
 import com.collabeditor.ot.model.AppliedOperation;
+import com.collabeditor.ot.model.DeleteOperation;
 import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.TextOperation;
 
@@ -11,7 +12,12 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * In-memory canonical state holder for one collaboration session.
- * Serializes operation processing per session using a ReentrantLock.
+ *
+ * <p>Stores the canonical document text, revision counter, and applied operation history.
+ * All mutations are serialized per-session via a {@link ReentrantLock} so concurrent
+ * WebSocket threads cannot corrupt the revision stream.
+ *
+ * <p>Phase 2 is fully in-memory: no PostgreSQL, Redis, or snapshot persistence.
  */
 public class CollaborationSessionRuntime {
 
@@ -35,20 +41,85 @@ public class CollaborationSessionRuntime {
         return sessionId;
     }
 
+    /**
+     * Returns an immutable snapshot of the current canonical document state.
+     */
     public DocumentSnapshot snapshot() {
-        throw new UnsupportedOperationException("Not yet implemented");
+        lock.lock();
+        try {
+            return new DocumentSnapshot(document.toString(), revision);
+        } finally {
+            lock.unlock();
+        }
     }
 
-    public ApplyResult applyClientOperation(TextOperation operation) {
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
-
+    /**
+     * Returns the number of operations in the canonical history.
+     */
     public int getHistorySize() {
-        return history.size();
+        lock.lock();
+        try {
+            return history.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Applies a client operation to the canonical document.
+     *
+     * <p>If the client's base revision is behind the current canonical revision,
+     * the operation is transformed sequentially through all history entries newer
+     * than the base revision before being applied.
+     *
+     * @param operation the client operation to apply
+     * @return the result containing the assigned revision, canonical operation, and snapshot
+     * @throws IllegalArgumentException if baseRevision is in the future
+     */
+    public ApplyResult applyClientOperation(TextOperation operation) {
+        lock.lock();
+        try {
+            long baseRevision = operation.baseRevision();
+
+            if (baseRevision > revision) {
+                throw new IllegalArgumentException(
+                        "Operation base revision %d is ahead of canonical revision %d"
+                                .formatted(baseRevision, revision));
+            }
+
+            // Transform against all operations in history since baseRevision
+            TextOperation transformed = operation;
+            for (int i = (int) baseRevision; i < history.size(); i++) {
+                AppliedOperation historicalOp = history.get(i);
+                transformed = otService.transform(transformed, historicalOp.operation());
+            }
+
+            // Apply the transformed operation to the canonical document (skip no-op deletes)
+            if (transformed instanceof DeleteOperation del && del.length() == 0) {
+                // No-op delete from transform; still assign a revision for consistency
+            } else {
+                String newDoc = otService.apply(document.toString(), transformed);
+                document.setLength(0);
+                document.append(newDoc);
+            }
+
+            // Increment revision and record in history
+            revision++;
+            AppliedOperation applied = new AppliedOperation(revision, transformed);
+            history.add(applied);
+
+            return new ApplyResult(revision, transformed, snapshot());
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
      * Result of applying a client operation to the canonical document.
+     *
+     * @param revision           the assigned canonical revision
+     * @param canonicalOperation the operation as transformed and applied to the canonical document
+     * @param snapshot           the document snapshot after applying the operation
      */
     public record ApplyResult(
             long revision,
