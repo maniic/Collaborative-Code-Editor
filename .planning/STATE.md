@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-27T21:08:00Z"
-last_activity: 2026-03-27 — Completed Plan 02-02: WebSocket collaboration endpoint
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-27T21:20:13Z"
+last_activity: 2026-03-27 — Completed Plan 02-03: Presence and Phase 2 verification
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 9
-  percent: 43
+  completed_plans: 10
+  percent: 50
 ---
 
 # Project State
@@ -21,24 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 2 — real-time-ot-collaboration
+**Current focus:** Phase 2 complete, ready for Phase 3
 
 ## Current Position
 
-Phase: 2 (real-time-ot-collaboration)
-Plan: 2 of 3
-Status: Plan 02-02 complete — WebSocket collaboration endpoint with typed protocol
-Last activity: 2026-03-27 — Completed Plan 02-02: WebSocket endpoint, handshake auth, and collaboration protocol
+Phase: 2 (real-time-ot-collaboration) -- COMPLETE
+Plan: 3 of 3
+Status: Phase 2 complete -- OT engine, WebSocket protocol, and presence all verified
+Last activity: 2026-03-27 -- Completed Plan 02-03: Presence and Phase 2 verification
 
-Progress: [████░░░░░░] 43%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 11 min
-- Total execution time: 1.58 hours
+- Total execution time: 1.75 hours
 
 **By Phase:**
 
@@ -46,14 +46,14 @@ Progress: [████░░░░░░] 43%
 |-------|-------|-------|----------|
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
-| 2. Real-Time OT Collaboration | 2 | 20 min | 10 min |
+| 2. Real-Time OT Collaboration | 3 | 30 min | 10 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 0 | 0 min | 0 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min), 02-01 (11 min), 02-02 (9 min)
+- Last 5 plans: 01.1-03 (11 min), 01.1-04 (4 min), 02-01 (11 min), 02-02 (9 min), 02-03 (10 min)
 - Trend: Stable
 
 ## Accumulated Context
@@ -95,6 +95,10 @@ Recent decisions affecting current work:
 - [Phase 02]: JwtTokenService.extractIdentity() shared helper for handshake and HTTP filter — Avoids duplicate UUID/email parsing logic.
 - [Phase 02]: CollaborationSessionRegistry uses ConcurrentHashMap + CopyOnWriteArraySet — Thread-safe socket tracking without explicit locking.
 - [Phase 02]: Future base revision triggers resync_required rather than socket close — Gives client a chance to recover gracefully.
+- [Phase 02]: PresenceService uses ConcurrentHashMap keyed by sessionId+userId for ephemeral presence state — No persistence needed for cursor positions in Phase 2.
+- [Phase 02]: Selection range transformation applies same insert/delete logic as OT but to cursor positions — Keeps ranges aligned with canonical document after edits.
+- [Phase 02]: Cursor throttle window is configurable via app.collaboration.cursor-throttle-ms (default 75ms) — Prevents cursor broadcast flooding without losing latest state.
+- [Phase 02]: Email resolution uses existing UserRepository.findById rather than duplicating user data — Single source of truth for participant identity.
 
 ### Pending Todos
 
@@ -107,10 +111,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None currently. Phase 01.1 remediation is complete and Phase 2 may begin.
+None currently. Phase 2 is complete and Phase 3 may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-27T21:08:00Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-real-time-ot-collaboration/02-02-SUMMARY.md
+Last session: 2026-03-27T21:20:13Z
+Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
+Resume file: .planning/phases/02-real-time-ot-collaboration/02-03-SUMMARY.md

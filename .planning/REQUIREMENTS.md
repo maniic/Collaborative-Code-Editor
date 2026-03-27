@@ -26,8 +26,8 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 - [x] **COLL-02**: Session participant can submit insert and delete operations against the shared document
 - [x] **COLL-03**: Concurrent edits from multiple participants converge to the same final document for every participant
 - [x] **COLL-04**: The collaboration engine supports multi-character insert and delete operations
-- [ ] **COLL-05**: Session participant can see cursor positions from other active participants in real time
-- [ ] **COLL-06**: Session participant receives join and leave presence events for other participants
+- [x] **COLL-05**: Session participant can see cursor positions from other active participants in real time
+- [x] **COLL-06**: Session participant receives join and leave presence events for other participants
 
 ### Persistence & Scaling
 
@@ -94,8 +94,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-02 | Phase 2 | Complete |
 | COLL-03 | Phase 2 | Complete |
 | COLL-04 | Phase 2 | Complete |
-| COLL-05 | Phase 2 | Pending |
-| COLL-06 | Phase 2 | Pending |
+| COLL-05 | Phase 2 | Complete |
+| COLL-06 | Phase 2 | Complete |
 | DATA-01 | Phase 3 | Pending |
 | DATA-02 | Phase 3 | Pending |
 | DATA-03 | Phase 3 | Pending |
