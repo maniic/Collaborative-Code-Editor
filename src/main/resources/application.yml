@@ -26,3 +26,5 @@ app:
   session:
     participant-cap: 12
     cleanup-fixed-delay: PT5M
+  collaboration:
+    cursor-throttle-ms: 75

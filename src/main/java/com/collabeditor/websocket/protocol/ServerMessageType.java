@@ -8,5 +8,8 @@ public enum ServerMessageType {
     operation_ack,
     operation_applied,
     operation_error,
-    resync_required
+    resync_required,
+    participant_joined,
+    participant_left,
+    presence_updated
 }

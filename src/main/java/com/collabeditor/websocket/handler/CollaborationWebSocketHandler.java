@@ -1,5 +1,7 @@
 package com.collabeditor.websocket.handler;
 
+import com.collabeditor.auth.persistence.UserRepository;
+import com.collabeditor.auth.persistence.entity.UserEntity;
 import com.collabeditor.ot.model.DeleteOperation;
 import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.InsertOperation;
@@ -10,6 +12,7 @@ import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.protocol.*;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
+import com.collabeditor.websocket.service.PresenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,13 +48,19 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
     private final CollaborationSessionRegistry registry;
     private final SessionParticipantRepository participantRepository;
+    private final UserRepository userRepository;
+    private final PresenceService presenceService;
     private final ObjectMapper objectMapper;
 
     public CollaborationWebSocketHandler(CollaborationSessionRegistry registry,
                                           SessionParticipantRepository participantRepository,
+                                          UserRepository userRepository,
+                                          PresenceService presenceService,
                                           ObjectMapper objectMapper) {
         this.registry = registry;
         this.participantRepository = participantRepository;
+        this.userRepository = userRepository;
+        this.presenceService = presenceService;
         this.objectMapper = objectMapper;
     }
 
@@ -62,8 +71,12 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
         log.debug("WebSocket connected: userId={} sessionId={}", userId, sessionId);
 
-        // Register socket
+        // Resolve email from user store
+        String email = resolveEmail(userId);
+
+        // Register socket and presence
         registry.addSocket(sessionId, session);
+        presenceService.join(sessionId, userId, email);
 
         // Get or create runtime and send document_sync
         CollaborationSessionRuntime runtime = registry.getOrCreateRuntime(sessionId);
@@ -73,13 +86,17 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         List<ParticipantInfo> participants = participantRepository
                 .findActiveBySessionIdOrdered(sessionId)
                 .stream()
-                .map(p -> new ParticipantInfo(p.getUserId(), null))
+                .map(p -> new ParticipantInfo(p.getUserId(), resolveEmail(p.getUserId())))
                 .toList();
 
         DocumentSyncPayload syncPayload = new DocumentSyncPayload(
                 snapshot.document(), snapshot.revision(), participants);
 
         sendMessage(session, ServerMessageType.document_sync, syncPayload);
+
+        // Broadcast participant_joined to all room sockets
+        broadcast(sessionId, ServerMessageType.participant_joined,
+                new ParticipantJoinedPayload(userId, email));
     }
 
     @Override
@@ -117,6 +134,8 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         // Dispatch by type
         if (ClientMessageType.submit_operation.name().equals(envelope.type())) {
             handleSubmitOperation(session, sessionId, userId, envelope);
+        } else if (ClientMessageType.update_presence.name().equals(envelope.type())) {
+            handleUpdatePresence(session, sessionId, userId, envelope);
         } else {
             sendMessage(session, ServerMessageType.operation_error,
                     new OperationErrorPayload(null, "Unknown message type: " + envelope.type()));
@@ -130,7 +149,15 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
         log.debug("WebSocket disconnected: userId={} sessionId={} status={}", userId, sessionId, status);
 
+        // Resolve email before removing presence
+        String email = presenceService.getEmail(sessionId, userId);
+
         registry.removeSocket(sessionId, session);
+        presenceService.leave(sessionId, userId);
+
+        // Broadcast participant_left to remaining room sockets
+        broadcast(sessionId, ServerMessageType.participant_left,
+                new ParticipantLeftPayload(userId, email));
     }
 
     private void handleSubmitOperation(WebSocketSession session, UUID sessionId, UUID userId,
@@ -190,6 +217,41 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
         // Broadcast to all room sockets (including sender)
         broadcast(sessionId, ServerMessageType.operation_applied, appliedPayload);
+    }
+
+    private void handleUpdatePresence(WebSocketSession session, UUID sessionId, UUID userId,
+                                       CollaborationEnvelope envelope) throws IOException {
+        PresenceUpdatePayload payload;
+        try {
+            payload = objectMapper.treeToValue(envelope.payload(), PresenceUpdatePayload.class);
+        } catch (Exception e) {
+            sendMessage(session, ServerMessageType.operation_error,
+                    new OperationErrorPayload(null, "Malformed update_presence payload"));
+            return;
+        }
+
+        if (payload.selection() == null) {
+            sendMessage(session, ServerMessageType.operation_error,
+                    new OperationErrorPayload(null, "Missing selection in update_presence"));
+            return;
+        }
+
+        // Store latest selection regardless of throttle
+        presenceService.updateSelection(sessionId, userId, payload.selection());
+
+        // Broadcast only if throttle window has passed
+        if (presenceService.shouldBroadcast(sessionId, userId)) {
+            presenceService.markBroadcast(sessionId, userId);
+            String email = presenceService.getEmail(sessionId, userId);
+            broadcast(sessionId, ServerMessageType.presence_updated,
+                    new PresenceUpdatedPayload(userId, email, payload.selection()));
+        }
+    }
+
+    private String resolveEmail(UUID userId) {
+        return userRepository.findById(userId)
+                .map(UserEntity::getEmail)
+                .orElse(null);
     }
 
     private TextOperation buildOperation(SubmitOperationPayload payload, UUID userId) {

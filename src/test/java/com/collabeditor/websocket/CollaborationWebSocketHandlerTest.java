@@ -1,5 +1,7 @@
 package com.collabeditor.websocket;
 
+import com.collabeditor.auth.persistence.UserRepository;
+import com.collabeditor.auth.persistence.entity.UserEntity;
 import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.InsertOperation;
 import com.collabeditor.ot.model.TextOperation;
@@ -10,6 +12,7 @@ import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.handler.CollaborationWebSocketHandler;
 import com.collabeditor.websocket.protocol.CollaborationEnvelope;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
+import com.collabeditor.websocket.service.PresenceService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,21 +39,26 @@ class CollaborationWebSocketHandlerTest {
 
     @Mock private CollaborationSessionRegistry registry;
     @Mock private SessionParticipantRepository participantRepository;
+    @Mock private UserRepository userRepository;
     @Mock private WebSocketSession senderSocket;
     @Mock private WebSocketSession peerSocket;
     @Mock private CollaborationSessionRuntime runtime;
 
     private CollaborationWebSocketHandler handler;
+    private PresenceService presenceService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final UUID sessionId = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private final UUID userId = UUID.fromString("22222222-2222-2222-2222-222222222222");
     private final UUID peerId = UUID.fromString("33333333-3333-3333-3333-333333333333");
     private final String email = "user@example.com";
+    private final String peerEmail = "peer@example.com";
 
     @BeforeEach
     void setUp() {
-        handler = new CollaborationWebSocketHandler(registry, participantRepository, objectMapper);
+        presenceService = new PresenceService(75);
+        handler = new CollaborationWebSocketHandler(registry, participantRepository,
+                userRepository, presenceService, objectMapper);
     }
 
     private Map<String, Object> socketAttributes(UUID sid, UUID uid) {
@@ -70,8 +78,13 @@ class CollaborationWebSocketHandlerTest {
         void sendsDocumentSyncOnConnect() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
+            when(senderSocket.isOpen()).thenReturn(true);
             when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
             when(runtime.snapshot()).thenReturn(new DocumentSnapshot("hello", 3));
+            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+
+            UserEntity userEntity = new UserEntity(userId, email, "hash");
+            when(userRepository.findById(userId)).thenReturn(Optional.of(userEntity));
 
             SessionParticipantEntity participant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
             when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of(participant));
@@ -80,10 +93,11 @@ class CollaborationWebSocketHandlerTest {
 
             verify(registry).addSocket(sessionId, senderSocket);
             ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-            verify(senderSocket).sendMessage(captor.capture());
+            verify(senderSocket, atLeast(1)).sendMessage(captor.capture());
 
+            // First message is document_sync
             CollaborationEnvelope envelope = objectMapper.readValue(
-                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+                    captor.getAllValues().get(0).getPayload(), CollaborationEnvelope.class);
             assertThat(envelope.type()).isEqualTo("document_sync");
 
             JsonNode payload = envelope.payload();
@@ -299,14 +313,29 @@ class CollaborationWebSocketHandlerTest {
     class ConnectionClosed {
 
         @Test
-        @DisplayName("afterConnectionClosed removes socket from registry")
+        @DisplayName("afterConnectionClosed removes socket from registry and broadcasts participant_left")
         void removesSocketOnClose() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
+            when(peerSocket.isOpen()).thenReturn(true);
+            when(registry.getSockets(sessionId)).thenReturn(Set.of(peerSocket));
+
+            // Pre-join so presence has email to look up
+            presenceService.join(sessionId, userId, email);
 
             handler.afterConnectionClosed(senderSocket, CloseStatus.NORMAL);
 
             verify(registry).removeSocket(sessionId, senderSocket);
+
+            // Verify participant_left broadcast
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(peerSocket).sendMessage(captor.capture());
+
+            CollaborationEnvelope envelope = objectMapper.readValue(
+                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+            assertThat(envelope.type()).isEqualTo("participant_left");
+            assertThat(envelope.payload().get("userId").asText()).isEqualTo(userId.toString());
+            assertThat(envelope.payload().get("email").asText()).isEqualTo(email);
         }
     }
 
@@ -319,8 +348,15 @@ class CollaborationWebSocketHandlerTest {
         void documentSyncContainsExpectedFields() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
+            when(senderSocket.isOpen()).thenReturn(true);
             when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
             when(runtime.snapshot()).thenReturn(new DocumentSnapshot("", 0));
+            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+
+            UserEntity userEntity = new UserEntity(userId, email, "hash");
+            UserEntity peerEntity = new UserEntity(peerId, peerEmail, "hash");
+            when(userRepository.findById(userId)).thenReturn(Optional.of(userEntity));
+            when(userRepository.findById(peerId)).thenReturn(Optional.of(peerEntity));
 
             SessionParticipantEntity p1 = new SessionParticipantEntity(sessionId, userId, "OWNER", "ACTIVE");
             SessionParticipantEntity p2 = new SessionParticipantEntity(sessionId, peerId, "MEMBER", "ACTIVE");
@@ -329,10 +365,11 @@ class CollaborationWebSocketHandlerTest {
             handler.afterConnectionEstablished(senderSocket);
 
             ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-            verify(senderSocket).sendMessage(captor.capture());
+            verify(senderSocket, atLeast(1)).sendMessage(captor.capture());
 
+            // First message is document_sync
             CollaborationEnvelope envelope = objectMapper.readValue(
-                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+                    captor.getAllValues().get(0).getPayload(), CollaborationEnvelope.class);
             assertThat(envelope.type()).isEqualTo("document_sync");
 
             JsonNode payload = envelope.payload();
