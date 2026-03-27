@@ -29,8 +29,17 @@ public class JwtTokenService {
      * Mint a new access JWT for the given user.
      */
     public String createAccessToken(UUID userId, String email) {
-        // TODO: implement
-        throw new UnsupportedOperationException("Not yet implemented");
+        Instant now = Instant.now();
+        Instant expiry = now.plus(securityProperties.accessTokenTtl());
+
+        return Jwts.builder()
+                .issuer("collaborative-code-editor")
+                .subject(userId.toString())
+                .claim("email", email)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(expiry))
+                .signWith(signingKey)
+                .compact();
     }
 
     /**
@@ -38,8 +47,15 @@ public class JwtTokenService {
      * Returns null if the token is invalid or expired.
      */
     public Claims parseToken(String token) {
-        // TODO: implement
-        throw new UnsupportedOperationException("Not yet implemented");
+        try {
+            return Jwts.parser()
+                    .verifyWith(signingKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public long getAccessTokenTtlSeconds() {

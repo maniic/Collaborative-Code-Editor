@@ -13,3 +13,11 @@ spring:
   flyway:
     locations: classpath:db/migration
     enabled: true
+
+app:
+  security:
+    access-token-ttl: PT15M
+    refresh-token-ttl: P30D
+    refresh-cookie-name: ccd_refresh_token
+    refresh-cookie-path: /api/auth
+    refresh-cookie-same-site: Strict
