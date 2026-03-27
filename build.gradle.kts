@@ -39,10 +39,21 @@ dependencies {
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
+    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
+    testImplementation("org.testcontainers:postgresql:1.21.4")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    // Forward Docker host for Testcontainers (supports Colima, Podman, etc.)
+    val dockerHost = System.getenv("DOCKER_HOST")
+    if (!dockerHost.isNullOrBlank()) {
+        environment("DOCKER_HOST", dockerHost)
+        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
+    }
+    // Ensure user.home is set so Testcontainers can find ~/.testcontainers.properties
+    systemProperty("user.home", System.getProperty("user.home"))
+    // Set Docker API version for docker-java compatibility with Docker 25+ (min API 1.44)
+    environment("DOCKER_API_VERSION", "1.44")
+    jvmArgs("-DDOCKER_API_VERSION=1.44")
 }

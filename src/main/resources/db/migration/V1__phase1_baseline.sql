@@ -9,11 +9,11 @@ CREATE TABLE users (
     email      VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    CONSTRAINT uq_users_email UNIQUE (LOWER(email))
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_users_email ON users (LOWER(email));
+-- Functional unique index for case-insensitive email uniqueness
+CREATE UNIQUE INDEX uq_users_email ON users (LOWER(email));
 
 -- ============================================================
 -- Refresh Sessions (per-device token rotation)
