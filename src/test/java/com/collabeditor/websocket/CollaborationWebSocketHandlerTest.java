@@ -309,4 +309,210 @@ class CollaborationWebSocketHandlerTest {
             verify(registry).removeSocket(sessionId, senderSocket);
         }
     }
+
+    @Nested
+    @DisplayName("Contract — document_sync bootstrap fields")
+    class DocumentSyncBootstrapContract {
+
+        @Test
+        @DisplayName("document_sync contains document, revision, and participants fields")
+        void documentSyncContainsExpectedFields() throws Exception {
+            Map<String, Object> attrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(attrs);
+            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
+            when(runtime.snapshot()).thenReturn(new DocumentSnapshot("", 0));
+
+            SessionParticipantEntity p1 = new SessionParticipantEntity(sessionId, userId, "OWNER", "ACTIVE");
+            SessionParticipantEntity p2 = new SessionParticipantEntity(sessionId, peerId, "MEMBER", "ACTIVE");
+            when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of(p1, p2));
+
+            handler.afterConnectionEstablished(senderSocket);
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(senderSocket).sendMessage(captor.capture());
+
+            CollaborationEnvelope envelope = objectMapper.readValue(
+                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+            assertThat(envelope.type()).isEqualTo("document_sync");
+
+            JsonNode payload = envelope.payload();
+            assertThat(payload.has("document")).isTrue();
+            assertThat(payload.has("revision")).isTrue();
+            assertThat(payload.has("participants")).isTrue();
+            assertThat(payload.get("document").asText()).isEmpty();
+            assertThat(payload.get("revision").asLong()).isEqualTo(0);
+            assertThat(payload.get("participants").size()).isEqualTo(2);
+        }
+    }
+
+    @Nested
+    @DisplayName("Contract — peer receives operation_applied with canonical revision")
+    class PeerOperationAppliedContract {
+
+        @Test
+        @DisplayName("peer socket receives operation_applied with correct canonical revision and transformed operation")
+        void peerReceivesOperationAppliedWithCanonicalRevision() throws Exception {
+            Map<String, Object> senderAttrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(senderAttrs);
+            when(senderSocket.isOpen()).thenReturn(true);
+            when(peerSocket.isOpen()).thenReturn(true);
+
+            SessionParticipantEntity activeParticipant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
+                    .thenReturn(Optional.of(activeParticipant));
+
+            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
+
+            // Simulate server transforming and advancing revision
+            InsertOperation canonicalOp = new InsertOperation(userId, 0, "op-peer", 5, "world");
+            DocumentSnapshot snapshot = new DocumentSnapshot("helloworld", 7);
+            when(runtime.applyClientOperation(any(TextOperation.class)))
+                    .thenReturn(new ApplyResult(7, canonicalOp, snapshot));
+
+            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket, peerSocket));
+
+            String json = objectMapper.writeValueAsString(Map.of(
+                    "type", "submit_operation",
+                    "payload", Map.of(
+                            "clientOperationId", "op-peer",
+                            "baseRevision", 3,
+                            "operationType", "INSERT",
+                            "position", 5,
+                            "text", "world"
+                    )
+            ));
+
+            handler.handleTextMessage(senderSocket, new TextMessage(json));
+
+            // Verify peer received operation_applied
+            ArgumentCaptor<TextMessage> peerCaptor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(peerSocket).sendMessage(peerCaptor.capture());
+
+            CollaborationEnvelope applied = objectMapper.readValue(
+                    peerCaptor.getValue().getPayload(), CollaborationEnvelope.class);
+            assertThat(applied.type()).isEqualTo("operation_applied");
+            assertThat(applied.payload().get("userId").asText()).isEqualTo(userId.toString());
+            assertThat(applied.payload().get("revision").asLong()).isEqualTo(7);
+            assertThat(applied.payload().get("operationType").asText()).isEqualTo("INSERT");
+            assertThat(applied.payload().get("position").asInt()).isEqualTo(5);
+            assertThat(applied.payload().get("text").asText()).isEqualTo("world");
+        }
+    }
+
+    @Nested
+    @DisplayName("Contract — unknown message type")
+    class UnknownMessageType {
+
+        @Test
+        @DisplayName("unknown message type yields operation_error")
+        void unknownTypeYieldsError() throws Exception {
+            Map<String, Object> attrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(attrs);
+
+            SessionParticipantEntity activeParticipant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
+                    .thenReturn(Optional.of(activeParticipant));
+
+            String json = objectMapper.writeValueAsString(Map.of(
+                    "type", "cursor_update",
+                    "payload", Map.of("position", 5)
+            ));
+
+            handler.handleTextMessage(senderSocket, new TextMessage(json));
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(senderSocket).sendMessage(captor.capture());
+
+            CollaborationEnvelope errorEnvelope = objectMapper.readValue(
+                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+            assertThat(errorEnvelope.type()).isEqualTo("operation_error");
+            assertThat(errorEnvelope.payload().get("error").asText()).contains("Unknown message type");
+        }
+    }
+
+    @Nested
+    @DisplayName("Contract — DELETE operation flow")
+    class DeleteOperationContract {
+
+        @Test
+        @DisplayName("valid DELETE submit_operation produces ack and applied broadcast")
+        void validDeleteProducesAckAndBroadcast() throws Exception {
+            Map<String, Object> attrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(attrs);
+            when(senderSocket.isOpen()).thenReturn(true);
+
+            SessionParticipantEntity activeParticipant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
+                    .thenReturn(Optional.of(activeParticipant));
+
+            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
+
+            com.collabeditor.ot.model.DeleteOperation canonicalOp =
+                    new com.collabeditor.ot.model.DeleteOperation(userId, 0, "op-del", 2, 3);
+            DocumentSnapshot snapshot = new DocumentSnapshot("he", 1);
+            when(runtime.applyClientOperation(any(TextOperation.class)))
+                    .thenReturn(new ApplyResult(1, canonicalOp, snapshot));
+
+            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+
+            String json = objectMapper.writeValueAsString(Map.of(
+                    "type", "submit_operation",
+                    "payload", Map.of(
+                            "clientOperationId", "op-del",
+                            "baseRevision", 0,
+                            "operationType", "DELETE",
+                            "position", 2,
+                            "length", 3
+                    )
+            ));
+
+            handler.handleTextMessage(senderSocket, new TextMessage(json));
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(senderSocket, atLeast(1)).sendMessage(captor.capture());
+
+            List<TextMessage> messages = captor.getAllValues();
+            // First message is ack
+            CollaborationEnvelope ack = objectMapper.readValue(messages.get(0).getPayload(), CollaborationEnvelope.class);
+            assertThat(ack.type()).isEqualTo("operation_ack");
+            assertThat(ack.payload().get("clientOperationId").asText()).isEqualTo("op-del");
+
+            // Second message is broadcast (including sender)
+            CollaborationEnvelope applied = objectMapper.readValue(messages.get(1).getPayload(), CollaborationEnvelope.class);
+            assertThat(applied.type()).isEqualTo("operation_applied");
+            assertThat(applied.payload().get("operationType").asText()).isEqualTo("DELETE");
+            assertThat(applied.payload().get("position").asInt()).isEqualTo(2);
+            assertThat(applied.payload().get("length").asInt()).isEqualTo(3);
+            assertThat(applied.payload().get("text").isNull()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("Contract — missing envelope type field")
+    class MissingTypeField {
+
+        @Test
+        @DisplayName("envelope with null type yields operation_error")
+        void nullTypeYieldsError() throws Exception {
+            Map<String, Object> attrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(attrs);
+
+            SessionParticipantEntity activeParticipant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
+                    .thenReturn(Optional.of(activeParticipant));
+
+            // Send envelope without type
+            String json = "{\"payload\":{\"foo\":\"bar\"}}";
+
+            handler.handleTextMessage(senderSocket, new TextMessage(json));
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(senderSocket).sendMessage(captor.capture());
+
+            CollaborationEnvelope errorEnvelope = objectMapper.readValue(
+                    captor.getValue().getPayload(), CollaborationEnvelope.class);
+            assertThat(errorEnvelope.type()).isEqualTo("operation_error");
+            assertThat(errorEnvelope.payload().get("error").asText()).contains("missing type");
+        }
+    }
 }

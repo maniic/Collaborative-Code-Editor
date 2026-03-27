@@ -128,6 +128,69 @@ class CollaborationHandshakeInterceptorTest {
     }
 
     @Nested
+    @DisplayName("Rejects handshake for invalid path")
+    class InvalidPath {
+
+        @Test
+        @DisplayName("non-UUID session path rejects handshake")
+        void nonUuidSessionPathRejectsHandshake() throws Exception {
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/not-a-uuid"));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+        }
+
+        @Test
+        @DisplayName("wrong path prefix rejects handshake")
+        void wrongPathPrefixRejectsHandshake() throws Exception {
+            when(request.getURI()).thenReturn(new URI("/api/sessions/" + sessionId));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("Rejects handshake for invalid identity claims")
+    class InvalidIdentity {
+
+        @Test
+        @DisplayName("valid jwt with invalid identity claims rejects handshake")
+        void validJwtInvalidIdentityRejectsHandshake() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer valid-token");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+            when(jwtTokenService.parseToken("valid-token")).thenReturn(Optional.of(claims));
+            when(jwtTokenService.extractIdentity(claims)).thenReturn(Optional.empty());
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("Rejects handshake for non-Bearer auth header")
+    class NonBearerAuth {
+
+        @Test
+        @DisplayName("Basic auth header rejects handshake")
+        void basicAuthRejectsHandshake() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Basic dXNlcjpwYXNz");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("Accepts handshake for active participant")
     class AcceptsActive {
 
@@ -150,6 +213,24 @@ class CollaborationHandshakeInterceptorTest {
             assertThat(attributes.get("sessionId")).isEqualTo(sessionId);
             assertThat(attributes.get("userId")).isEqualTo(userId);
             assertThat(attributes.get("email")).isEqualTo(email);
+        }
+
+        @Test
+        @DisplayName("owner participant also passes handshake")
+        void ownerParticipantAcceptsHandshake() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer valid-token");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+            when(jwtTokenService.parseToken("valid-token")).thenReturn(Optional.of(claims));
+            when(jwtTokenService.extractIdentity(claims)).thenReturn(Optional.of(new TokenIdentity(userId, email)));
+
+            SessionParticipantEntity participant = new SessionParticipantEntity(sessionId, userId, "OWNER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(participant));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isTrue();
         }
     }
 }
