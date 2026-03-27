@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Phase 01.1 planned and ready for execution
-last_updated: "2026-03-27T05:39:00Z"
-last_activity: 2026-03-27 — Verified and completed Phase 01.1
+stopped_at: Phase 01.1 complete — ready for Phase 2
+last_updated: "2026-03-27T20:00:36Z"
+last_activity: 2026-03-27 — Completed Phase 01.1 and closed the protected validation gap
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 17
+  total_plans: 7
+  completed_plans: 7
+  percent: 33
 ---
 
 # Project State
@@ -28,24 +28,24 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 Phase: 2 (real-time-ot-collaboration)
 Plan: Not started
 Status: Phase 01.1 complete — ready for Phase 2
-Last activity: 2026-03-27 — Verified and completed Phase 01.1
+Last activity: 2026-03-27 — Completed Phase 01.1 and closed the protected validation gap
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
-- Average duration: 12 min
-- Total execution time: 0.58 hours
+- Total plans completed: 7
+- Average duration: 11 min
+- Total execution time: 1.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
-| 01.1. Fix Phase 1 auth, session, and verification gaps | 0 | 0 min | 0 min |
+| 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
 | 2. Real-Time OT Collaboration | 0 | 0 min | 0 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 0 | 0 min | 0 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
@@ -53,8 +53,8 @@ Progress: [██░░░░░░░░] 17%
 
 **Recent Trend:**
 
-- Last 5 plans: 01-01 (21 min), 01-02 (7 min), 01-03 (7 min)
-- Trend: Accelerating
+- Last 5 plans: 01-03 (7 min), 01.1-01 (7 min), 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min)
+- Trend: Stable
 
 ## Accumulated Context
 
@@ -86,6 +86,8 @@ Recent decisions affecting current work:
 - [Phase 01.1]: Invite codes are normalized to uppercase and validated before session lookup — Join requests should fail with deterministic validation instead of ambiguous repository misses.
 - [Phase 01.1]: Join and leave now lock the session row while mutating membership — Participant-cap enforcement and owner transfer must be serialized per room under concurrent requests.
 - [Phase 01.1]: Cleanup re-locks expired session candidates before delete — A room that rejoined and cleared cleanup_after must not be deleted from a stale scheduler snapshot.
+- [Phase 01.1]: SecurityConfig now permits DispatcherType.ERROR and /error so authenticated MVC validation failures preserve their original HTTP status. — Keeps bearer auth strict on business endpoints while allowing framework validation responses to surface as 400.
+- [Phase 01.1]: Protected-route validation regressions are now asserted with JwtTokenService-issued bearer tokens instead of mocked principals alone. — Real bearer-path coverage catches security-chain and error-dispatch regressions before UAT.
 
 ### Pending Todos
 
@@ -94,7 +96,7 @@ None yet.
 ### Roadmap Evolution
 
 - Phase 01.1 inserted after Phase 1: Fix Phase 1 auth, session, and verification gaps (URGENT)
-- Phase 01.1 planned into 3 sequential plans: verification baseline, auth hardening, and session lifecycle hardening
+- Phase 01.1 expanded to 4 sequential plans after UAT exposed the protected validation 401 regression
 
 ### Blockers/Concerns
 
@@ -102,6 +104,6 @@ None currently. Phase 01.1 remediation is complete and Phase 2 may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-27T04:43:13Z
-Stopped at: Phase 01.1 planned and ready for execution
-Resume file: .planning/phases/01.1-fix-phase-1-auth-session-and-verification-gaps/
+Last session: 2026-03-27T20:00:36Z
+Stopped at: Phase 01.1 complete — ready for Phase 2
+Resume file: None
