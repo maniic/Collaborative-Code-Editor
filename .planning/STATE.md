@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-27T20:56:00Z"
-last_activity: 2026-03-27 — Completed Plan 02-01: OT core and canonical runtime
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-27T21:08:00Z"
+last_activity: 2026-03-27 — Completed Plan 02-02: WebSocket collaboration endpoint
 progress:
   total_phases: 6
   completed_phases: 2
   total_plans: 8
-  completed_plans: 8
-  percent: 38
+  completed_plans: 9
+  percent: 43
 ---
 
 # Project State
@@ -26,19 +26,19 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 2 (real-time-ot-collaboration)
-Plan: 1 of 3
-Status: Plan 02-01 complete — OT core and canonical runtime implemented
-Last activity: 2026-03-27 — Completed Plan 02-01: OT core, canonical runtime, and convergence tests
+Plan: 2 of 3
+Status: Plan 02-02 complete — WebSocket collaboration endpoint with typed protocol
+Last activity: 2026-03-27 — Completed Plan 02-02: WebSocket endpoint, handshake auth, and collaboration protocol
 
-Progress: [████░░░░░░] 38%
+Progress: [████░░░░░░] 43%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 11 min
-- Total execution time: 1.43 hours
+- Total execution time: 1.58 hours
 
 **By Phase:**
 
@@ -46,14 +46,14 @@ Progress: [████░░░░░░] 38%
 |-------|-------|-------|----------|
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
-| 2. Real-Time OT Collaboration | 1 | 11 min | 11 min |
+| 2. Real-Time OT Collaboration | 2 | 20 min | 10 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 0 | 0 min | 0 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01.1-01 (7 min), 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min), 02-01 (11 min)
+- Last 5 plans: 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min), 02-01 (11 min), 02-02 (9 min)
 - Trend: Stable
 
 ## Accumulated Context
@@ -91,6 +91,10 @@ Recent decisions affecting current work:
 - [Phase 02]: Same-position insert tie-break uses lexicographic authorUserId.toString() ordering — Deterministic and stable across all transform paths.
 - [Phase 02]: Insert inside delete range repositioned to delete start; delete-side expands to absorb — Consistent with server-authoritative model and single-operation transform constraints.
 - [Phase 02]: Java 17 instanceof dispatch instead of sealed switch — Repo toolchain targets Java 17 without preview features enabled.
+- [Phase 02]: WebSocket endpoint permitted in SecurityConfig; handshake interceptor handles auth independently — Separates HTTP filter chain from WebSocket auth path cleanly.
+- [Phase 02]: JwtTokenService.extractIdentity() shared helper for handshake and HTTP filter — Avoids duplicate UUID/email parsing logic.
+- [Phase 02]: CollaborationSessionRegistry uses ConcurrentHashMap + CopyOnWriteArraySet — Thread-safe socket tracking without explicit locking.
+- [Phase 02]: Future base revision triggers resync_required rather than socket close — Gives client a chance to recover gracefully.
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None currently. Phase 01.1 remediation is complete and Phase 2 may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-27T20:56:00Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: .planning/phases/02-real-time-ot-collaboration/02-01-SUMMARY.md
+Last session: 2026-03-27T21:08:00Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02-real-time-ot-collaboration/02-02-SUMMARY.md

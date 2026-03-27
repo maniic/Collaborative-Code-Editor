@@ -22,7 +22,7 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 
 ### Collaboration
 
-- [ ] **COLL-01**: Session participant can connect to a joined session over WebSocket
+- [x] **COLL-01**: Session participant can connect to a joined session over WebSocket
 - [x] **COLL-02**: Session participant can submit insert and delete operations against the shared document
 - [x] **COLL-03**: Concurrent edits from multiple participants converge to the same final document for every participant
 - [x] **COLL-04**: The collaboration engine supports multi-character insert and delete operations
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SESS-02 | Phase 1 | Complete |
 | SESS-03 | Phase 1 | Complete |
 | SESS-04 | Phase 1 | Complete |
-| COLL-01 | Phase 2 | Pending |
+| COLL-01 | Phase 2 | Complete |
 | COLL-02 | Phase 2 | Complete |
 | COLL-03 | Phase 2 | Complete |
 | COLL-04 | Phase 2 | Complete |
