@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
+status: completed
 stopped_at: Phase 01.1 planned and ready for execution
-last_updated: "2026-03-27T05:22:55.161Z"
-last_activity: 2026-03-27
+last_updated: "2026-03-27T05:39:00Z"
+last_activity: 2026-03-27 — Verified and completed Phase 01.1
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 17
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 01.1 — fix-phase-1-auth-session-and-verification-gaps
+**Current focus:** Phase 2 — real-time-ot-collaboration
 
 ## Current Position
 
-Phase: 01.1 (fix-phase-1-auth-session-and-verification-gaps) — EXECUTING
-Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-03-27
+Phase: 2 (real-time-ot-collaboration)
+Plan: Not started
+Status: Phase 01.1 complete — ready for Phase 2
+Last activity: 2026-03-27 — Verified and completed Phase 01.1
 
 Progress: [██░░░░░░░░] 17%
 
@@ -83,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 01.1]: SecurityProperties now validates jwt-secret and jwt-issuer at startup — JWT auth should fail closed when config is insecure instead of silently using a fallback secret.
 - [Phase 01.1]: Refresh rotation now locks the refresh session row before issuing a successor token — Concurrent refresh attempts must yield exactly one winner and one reuse failure.
 - [Phase 01.1]: Protected-route security tests now run through the production filter chain and 401 entrypoint — Controller tests should verify the real bearer-token behavior instead of a permitAll test-only chain.
+- [Phase 01.1]: Invite codes are normalized to uppercase and validated before session lookup — Join requests should fail with deterministic validation instead of ambiguous repository misses.
+- [Phase 01.1]: Join and leave now lock the session row while mutating membership — Participant-cap enforcement and owner transfer must be serialized per room under concurrent requests.
+- [Phase 01.1]: Cleanup re-locks expired session candidates before delete — A room that rejoined and cleared cleanup_after must not be deleted from a stale scheduler snapshot.
 
 ### Pending Todos
 
@@ -95,7 +98,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 2 is intentionally blocked behind Phase 01.1 due to unresolved Phase 1 security, concurrency, and verification issues.
+None currently. Phase 01.1 remediation is complete and Phase 2 may begin.
 
 ## Session Continuity
 
