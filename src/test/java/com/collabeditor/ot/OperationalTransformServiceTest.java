@@ -498,6 +498,174 @@ class OperationalTransformServiceTest {
         }
     }
 
+    // --- Edge case tests ---
+
+    @Nested
+    @DisplayName("Edge cases - same position insert ordering")
+    class SamePositionInsertOrdering {
+
+        @Test
+        @DisplayName("same position three-way ordering is consistent")
+        void threeWaySamePosition() {
+            UUID user1 = UUID.fromString("00000000-0000-0000-0000-000000000001");
+            UUID user2 = UUID.fromString("00000000-0000-0000-0000-000000000002");
+            UUID user3 = UUID.fromString("00000000-0000-0000-0000-000000000003");
+
+            InsertOperation op1 = insert(user1, 3, "A");
+            InsertOperation op2 = insert(user2, 3, "B");
+            InsertOperation op3 = insert(user3, 3, "C");
+
+            // user1 < user2 < user3, so user1 always wins left
+            TextOperation t12 = otService.transform(op1, op2);
+            assertThat(((InsertOperation) t12).position()).isEqualTo(3); // user1 stays
+
+            TextOperation t21 = otService.transform(op2, op1);
+            assertThat(((InsertOperation) t21).position()).isEqualTo(4); // user2 shifts
+
+            TextOperation t13 = otService.transform(op1, op3);
+            assertThat(((InsertOperation) t13).position()).isEqualTo(3); // user1 stays
+
+            TextOperation t31 = otService.transform(op3, op1);
+            assertThat(((InsertOperation) t31).position()).isEqualTo(4); // user3 shifts
+        }
+
+        @Test
+        @DisplayName("same position with equal UUID (same user) shifts right")
+        void sameUserSamePosition() {
+            InsertOperation op1 = insert(userA, 3, "ab");
+            InsertOperation op2 = insert(userA, 3, "cd");
+
+            // Same UUID: compareTo returns 0, which is NOT < 0, so op1 shifts right
+            TextOperation result = otService.transform(op1, op2);
+            assertThat(((InsertOperation) result).position()).isEqualTo(5);
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge cases - insert before delete boundary")
+    class InsertBeforeDeleteBoundary {
+
+        @Test
+        @DisplayName("insert at exact end of delete range")
+        void insertAtDeleteEnd() {
+            // Delete [2, 5), insert at position 5 (right at delete end boundary)
+            InsertOperation ins = insert(userA, 5, "XY");
+            DeleteOperation del = delete(userB, 2, 3);
+
+            TextOperation result = otService.transform(ins, del);
+            assertThat(result).isInstanceOf(InsertOperation.class);
+            // Insert is at position 5, delete ends at 5 (exclusive)
+            // ins.pos >= del.pos + del.len (5 >= 5), so shift left by 3
+            assertThat(((InsertOperation) result).position()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("insert one past delete range")
+        void insertOnePastDeleteRange() {
+            InsertOperation ins = insert(userA, 6, "XY");
+            DeleteOperation del = delete(userB, 2, 3);
+
+            TextOperation result = otService.transform(ins, del);
+            assertThat(((InsertOperation) result).position()).isEqualTo(3);
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge cases - delete swallowing insert point")
+    class DeleteSwallowingInsertPoint {
+
+        @Test
+        @DisplayName("delete expands when insert is at range midpoint")
+        void deleteExpandsAtMidpoint() {
+            DeleteOperation del = delete(userA, 1, 6);   // [1, 7)
+            InsertOperation ins = insert(userB, 4, "XYZ"); // inside range
+
+            TextOperation result = otService.transform(del, ins);
+            assertThat(result).isInstanceOf(DeleteOperation.class);
+            DeleteOperation r = (DeleteOperation) result;
+            assertThat(r.position()).isEqualTo(1);
+            assertThat(r.length()).isEqualTo(9); // 6 + 3
+        }
+
+        @Test
+        @DisplayName("delete expands when insert is at range start")
+        void deleteExpandsAtRangeStart() {
+            // Delete [3, 8), insert at position 3 (exact start)
+            DeleteOperation del = delete(userA, 3, 5);
+            InsertOperation ins = insert(userB, 3, "AB");
+
+            TextOperation result = otService.transform(del, ins);
+            assertThat(result).isInstanceOf(DeleteOperation.class);
+            DeleteOperation r = (DeleteOperation) result;
+            // Insert at del start: del.pos >= ins.pos (3 >= 3), so shift right
+            assertThat(r.position()).isEqualTo(5);
+            assertThat(r.length()).isEqualTo(5);
+        }
+    }
+
+    @Nested
+    @DisplayName("Edge cases - delete-containing-delete overlap normalization")
+    class DeleteContainingDeleteOverlap {
+
+        @Test
+        @DisplayName("adjacent deletes (no gap, no overlap)")
+        void adjacentDeletes() {
+            DeleteOperation op1 = delete(userA, 0, 3); // [0, 3)
+            DeleteOperation op2 = delete(userB, 3, 3); // [3, 6)
+
+            TextOperation result = otService.transform(op1, op2);
+            assertThat(result).isInstanceOf(DeleteOperation.class);
+            DeleteOperation r = (DeleteOperation) result;
+            // No overlap: op1 [0,3) entirely before op2 [3,6)
+            assertThat(r.position()).isEqualTo(0);
+            assertThat(r.length()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("op2 entirely within op1 - op1 shrinks")
+        void op2WithinOp1() {
+            DeleteOperation op1 = delete(userA, 1, 8); // [1, 9)
+            DeleteOperation op2 = delete(userB, 3, 2); // [3, 5)
+
+            TextOperation result = otService.transform(op1, op2);
+            assertThat(result).isInstanceOf(DeleteOperation.class);
+            DeleteOperation r = (DeleteOperation) result;
+            // op2 removed 2 chars in [3,5), op1 still needs [1,3) + [5,9) = 6 chars
+            assertThat(r.position()).isEqualTo(1);
+            assertThat(r.length()).isEqualTo(6);
+        }
+
+        @Test
+        @DisplayName("overlapping deletes convergence (TP1)")
+        void overlappingDeletesTP1() {
+            String doc = "0123456789";
+            DeleteOperation op1 = delete(userA, 1, 5); // delete "12345"
+            DeleteOperation op2 = delete(userB, 3, 5); // delete "34567"
+
+            String after1 = otService.apply(doc, op1);
+            TextOperation op2Prime = otService.transform(op2, op1);
+            String result1 = applyMaybeNoOp(after1, op2Prime);
+
+            String after2 = otService.apply(doc, op2);
+            TextOperation op1Prime = otService.transform(op1, op2);
+            String result2 = applyMaybeNoOp(after2, op1Prime);
+
+            assertThat(result1)
+                    .as("Overlapping deletes must converge")
+                    .isEqualTo(result2);
+        }
+    }
+
+    /**
+     * Helper to apply an operation that might be a no-op delete (length 0).
+     */
+    private String applyMaybeNoOp(String doc, TextOperation op) {
+        if (op instanceof DeleteOperation del && del.length() == 0) {
+            return doc;
+        }
+        return otService.apply(doc, op);
+    }
+
     // --- Helper methods ---
 
     private InsertOperation insert(UUID author, int position, String text) {
