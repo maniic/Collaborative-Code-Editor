@@ -15,9 +15,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -83,7 +92,7 @@ class RefreshSessionServiceTest {
                 oldSessionId, userId, oldHash, deviceId, "TestBrowser",
                 Instant.now().plusSeconds(86400));
 
-        when(refreshSessionRepository.findByTokenHash(oldHash))
+        when(refreshSessionRepository.findByTokenHashForUpdate(oldHash))
                 .thenReturn(Optional.of(oldSession));
         when(refreshSessionRepository.save(any(RefreshSessionEntity.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
@@ -123,7 +132,7 @@ class RefreshSessionServiceTest {
         revokedSession.setRevokedAt(Instant.now().minusSeconds(3600));
         revokedSession.setReplacedBySessionId(UUID.randomUUID());
 
-        when(refreshSessionRepository.findByTokenHash(reusedHash))
+        when(refreshSessionRepository.findByTokenHashForUpdate(reusedHash))
                 .thenReturn(Optional.of(revokedSession));
 
         assertThatThrownBy(() -> refreshSessionService.rotate(reusedRawToken))
@@ -131,6 +140,77 @@ class RefreshSessionServiceTest {
 
         // Should also revoke all sessions for this device
         verify(refreshSessionRepository).revokeByUserIdAndDeviceId(userId, deviceId);
+    }
+
+    @Test
+    void shouldAllowOnlyOneConcurrentSingleUseRefreshRotationRace() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID deviceId = UUID.randomUUID();
+        UUID oldSessionId = UUID.randomUUID();
+        String rawToken = "single-use-race-token";
+        String tokenHash = sha256Hex(rawToken);
+
+        RefreshSessionEntity oldSession = new RefreshSessionEntity(
+                oldSessionId, userId, tokenHash, deviceId, "TestBrowser",
+                Instant.now().plusSeconds(86400));
+
+        ReentrantLock rotationLock = new ReentrantLock();
+        List<RefreshSessionEntity> createdSessions = new ArrayList<>();
+
+        when(refreshSessionRepository.findByTokenHashForUpdate(tokenHash)).thenAnswer(invocation -> {
+            rotationLock.lock();
+            return Optional.of(oldSession);
+        });
+        when(refreshSessionRepository.save(any(RefreshSessionEntity.class))).thenAnswer(invocation -> {
+            RefreshSessionEntity session = invocation.getArgument(0);
+            if (!session.getId().equals(oldSessionId)) {
+                createdSessions.add(session);
+                return session;
+            }
+            try {
+                return session;
+            } finally {
+                rotationLock.unlock();
+            }
+        });
+        when(refreshSessionRepository.revokeByUserIdAndDeviceId(userId, deviceId)).thenAnswer(invocation -> {
+            rotationLock.unlock();
+            return 1;
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        try {
+            Future<RefreshResult> first = executor.submit(() -> rotateAfterBarrier(barrier, rawToken));
+            Future<RefreshResult> second = executor.submit(() -> rotateAfterBarrier(barrier, rawToken));
+
+            int successCount = 0;
+            int reusedCount = 0;
+            for (Future<RefreshResult> future : List.of(first, second)) {
+                try {
+                    RefreshResult result = future.get(5, TimeUnit.SECONDS);
+                    assertThat(result.session().getDeviceId()).isEqualTo(deviceId);
+                    successCount++;
+                } catch (ExecutionException ex) {
+                    assertThat(ex.getCause()).isInstanceOf(RefreshSessionService.RefreshTokenReusedException.class);
+                    reusedCount++;
+                }
+            }
+
+            assertThat(successCount).isEqualTo(1);
+            assertThat(reusedCount).isEqualTo(1);
+            assertThat(createdSessions).hasSize(1);
+            assertThat(oldSession.getRevokedAt()).isNotNull();
+            assertThat(oldSession.getReplacedBySessionId()).isEqualTo(createdSessions.get(0).getId());
+            verify(refreshSessionRepository).revokeByUserIdAndDeviceId(userId, deviceId);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private RefreshResult rotateAfterBarrier(CyclicBarrier barrier, String rawToken) throws Exception {
+        barrier.await(5, TimeUnit.SECONDS);
+        return refreshSessionService.rotate(rawToken);
     }
 
     private String sha256Hex(String input) {

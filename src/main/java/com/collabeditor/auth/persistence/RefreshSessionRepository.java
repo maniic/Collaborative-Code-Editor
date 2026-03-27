@@ -1,6 +1,8 @@
 package com.collabeditor.auth.persistence;
 
 import com.collabeditor.auth.persistence.entity.RefreshSessionEntity;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -13,6 +15,10 @@ import java.util.UUID;
 public interface RefreshSessionRepository extends JpaRepository<RefreshSessionEntity, UUID> {
 
     Optional<RefreshSessionEntity> findByTokenHash(String tokenHash);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT rs FROM RefreshSessionEntity rs WHERE rs.tokenHash = :tokenHash")
+    Optional<RefreshSessionEntity> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
     @Query("SELECT rs FROM RefreshSessionEntity rs WHERE rs.userId = :userId AND rs.revokedAt IS NULL")
     List<RefreshSessionEntity> findActiveByUserId(@Param("userId") UUID userId);

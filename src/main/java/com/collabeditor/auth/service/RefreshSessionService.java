@@ -57,7 +57,7 @@ public class RefreshSessionService {
     public RefreshResult rotate(String rawToken) {
         String tokenHash = hashToken(rawToken);
 
-        RefreshSessionEntity oldSession = refreshSessionRepository.findByTokenHash(tokenHash)
+        RefreshSessionEntity oldSession = refreshSessionRepository.findByTokenHashForUpdate(tokenHash)
                 .orElseThrow(() -> new InvalidRefreshTokenException("Refresh token not found"));
 
         if (oldSession.getRevokedAt() != null) {
@@ -87,6 +87,7 @@ public class RefreshSessionService {
         // Mark the old session as replaced
         oldSession.setReplacedBySessionId(saved.getId());
         oldSession.setRevokedAt(Instant.now());
+        oldSession.setLastUsedAt(Instant.now());
         refreshSessionRepository.save(oldSession);
 
         return new RefreshResult(newRawToken, saved);
