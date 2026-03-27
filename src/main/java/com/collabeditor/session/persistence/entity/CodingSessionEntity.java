@@ -22,7 +22,7 @@ public class CodingSessionEntity {
     private UUID ownerUserId;
 
     @Column(name = "participant_cap", nullable = false)
-    private int participantCap;
+    private short participantCap;
 
     @Column(name = "empty_since")
     private Instant emptySince;
@@ -44,7 +44,7 @@ public class CodingSessionEntity {
         this.inviteCode = inviteCode;
         this.language = language;
         this.ownerUserId = ownerUserId;
-        this.participantCap = participantCap;
+        this.participantCap = toSmallInt(participantCap);
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
@@ -71,5 +71,12 @@ public class CodingSessionEntity {
     @PreUpdate
     void preUpdate() {
         updatedAt = Instant.now();
+    }
+
+    private short toSmallInt(int participantCap) {
+        if (participantCap < Short.MIN_VALUE || participantCap > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("participantCap must fit PostgreSQL SMALLINT");
+        }
+        return (short) participantCap;
     }
 }

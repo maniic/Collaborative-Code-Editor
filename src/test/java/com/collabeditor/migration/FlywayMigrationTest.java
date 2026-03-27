@@ -3,6 +3,7 @@ package com.collabeditor.migration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -46,6 +47,21 @@ class FlywayMigrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private Environment environment;
+
+    @Test
+    void contextBootsAgainstContainerWithValidationEnabled() throws SQLException {
+        assertThat(postgres.isRunning()).isTrue();
+        assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
+        assertThat(environment.getProperty("spring.flyway.enabled", Boolean.class)).isTrue();
+        assertThat(environment.getProperty("spring.flyway.locations")).contains("classpath:db/migration");
+
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+            assertThat(connection.getMetaData().getURL()).isEqualTo(postgres.getJdbcUrl());
+        }
+    }
+
     @Test
     void migrationCreatesUsersTable() throws SQLException {
         List<String> columns = getColumnNames("users");
@@ -70,6 +86,15 @@ class FlywayMigrationTest {
                 "participant_cap", "empty_since", "cleanup_after",
                 "created_at", "updated_at"
         );
+    }
+
+    @Test
+    void participantCapColumnUsesSmallint() throws SQLException {
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection();
+             ResultSet columns = connection.getMetaData().getColumns(null, "public", "coding_sessions", "participant_cap")) {
+            assertThat(columns.next()).isTrue();
+            assertThat(columns.getString("TYPE_NAME")).matches("(?i)(int2|smallint)");
+        }
     }
 
     @Test
@@ -127,16 +152,13 @@ class FlywayMigrationTest {
 
     private List<String> getColumnNames(String tableName) throws SQLException {
         List<String> columns = new ArrayList<>();
-        Connection connection = jdbcTemplate.getDataSource().getConnection();
-        try {
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
             DatabaseMetaData metaData = connection.getMetaData();
-            ResultSet rs = metaData.getColumns(null, "public", tableName, null);
-            while (rs.next()) {
-                columns.add(rs.getString("COLUMN_NAME"));
+            try (ResultSet rs = metaData.getColumns(null, "public", tableName, null)) {
+                while (rs.next()) {
+                    columns.add(rs.getString("COLUMN_NAME"));
+                }
             }
-            rs.close();
-        } finally {
-            connection.close();
         }
         return columns;
     }
