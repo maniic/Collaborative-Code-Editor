@@ -63,6 +63,28 @@ public class JwtTokenService {
         }
     }
 
+    /**
+     * Extract userId (from subject) and email (from claim) from validated claims.
+     * Returns empty if subject is not a valid UUID or email is missing.
+     */
+    public Optional<TokenIdentity> extractIdentity(Claims claims) {
+        try {
+            UUID userId = UUID.fromString(claims.getSubject());
+            String email = claims.get("email", String.class);
+            if (email == null || email.isBlank()) {
+                return Optional.empty();
+            }
+            return Optional.of(new TokenIdentity(userId, email));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Identity extracted from a validated JWT.
+     */
+    public record TokenIdentity(UUID userId, String email) {}
+
     public long getAccessTokenTtlSeconds() {
         return securityProperties.accessTokenTtl().toSeconds();
     }
