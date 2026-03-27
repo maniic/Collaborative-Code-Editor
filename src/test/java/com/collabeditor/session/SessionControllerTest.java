@@ -1,6 +1,7 @@
 package com.collabeditor.session;
 
-import com.collabeditor.auth.common.TestSecurityConfig;
+import com.collabeditor.auth.security.JwtAuthenticationFilter;
+import com.collabeditor.auth.security.SecurityConfig;
 import com.collabeditor.auth.service.JwtTokenService;
 import com.collabeditor.common.api.ApiExceptionHandler;
 import com.collabeditor.session.api.SessionController;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = SessionController.class)
-@Import({ApiExceptionHandler.class, TestSecurityConfig.class})
+@Import({ApiExceptionHandler.class, SecurityConfig.class, JwtAuthenticationFilter.class})
 class SessionControllerTest {
 
     @Autowired
