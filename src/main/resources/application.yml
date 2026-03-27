@@ -21,3 +21,6 @@ app:
     refresh-cookie-name: ccd_refresh_token
     refresh-cookie-path: /api/auth
     refresh-cookie-same-site: Strict
+  session:
+    participant-cap: 12
+    cleanup-fixed-delay: PT5M
