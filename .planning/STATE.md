@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-27T20:25:41.406Z"
-last_activity: 2026-03-27 — Completed Phase 01.1 and closed the protected validation gap
+status: in-progress
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-27T20:56:00Z"
+last_activity: 2026-03-27 — Completed Plan 02-01: OT core and canonical runtime
 progress:
   total_phases: 6
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 33
+  total_plans: 8
+  completed_plans: 8
+  percent: 38
 ---
 
 # Project State
@@ -26,19 +26,19 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 2 (real-time-ot-collaboration)
-Plan: Not started
-Status: Phase 01.1 complete — ready for Phase 2
-Last activity: 2026-03-27 — Completed Phase 01.1 and closed the protected validation gap
+Plan: 1 of 3
+Status: Plan 02-01 complete — OT core and canonical runtime implemented
+Last activity: 2026-03-27 — Completed Plan 02-01: OT core, canonical runtime, and convergence tests
 
-Progress: [███░░░░░░░] 33%
+Progress: [████░░░░░░] 38%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 11 min
-- Total execution time: 1.25 hours
+- Total execution time: 1.43 hours
 
 **By Phase:**
 
@@ -46,14 +46,14 @@ Progress: [███░░░░░░░] 33%
 |-------|-------|-------|----------|
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
-| 2. Real-Time OT Collaboration | 0 | 0 min | 0 min |
+| 2. Real-Time OT Collaboration | 1 | 11 min | 11 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 0 | 0 min | 0 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01-03 (7 min), 01.1-01 (7 min), 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min)
+- Last 5 plans: 01.1-01 (7 min), 01.1-02 (18 min), 01.1-03 (11 min), 01.1-04 (4 min), 02-01 (11 min)
 - Trend: Stable
 
 ## Accumulated Context
@@ -88,6 +88,9 @@ Recent decisions affecting current work:
 - [Phase 01.1]: Cleanup re-locks expired session candidates before delete — A room that rejoined and cleared cleanup_after must not be deleted from a stale scheduler snapshot.
 - [Phase 01.1]: SecurityConfig now permits DispatcherType.ERROR and /error so authenticated MVC validation failures preserve their original HTTP status. — Keeps bearer auth strict on business endpoints while allowing framework validation responses to surface as 400.
 - [Phase 01.1]: Protected-route validation regressions are now asserted with JwtTokenService-issued bearer tokens instead of mocked principals alone. — Real bearer-path coverage catches security-chain and error-dispatch regressions before UAT.
+- [Phase 02]: Same-position insert tie-break uses lexicographic authorUserId.toString() ordering — Deterministic and stable across all transform paths.
+- [Phase 02]: Insert inside delete range repositioned to delete start; delete-side expands to absorb — Consistent with server-authoritative model and single-operation transform constraints.
+- [Phase 02]: Java 17 instanceof dispatch instead of sealed switch — Repo toolchain targets Java 17 without preview features enabled.
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None currently. Phase 01.1 remediation is complete and Phase 2 may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-27T20:25:41.403Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-real-time-ot-collaboration/02-CONTEXT.md
+Last session: 2026-03-27T20:56:00Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: .planning/phases/02-real-time-ot-collaboration/02-01-SUMMARY.md

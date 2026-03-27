@@ -23,9 +23,9 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 ### Collaboration
 
 - [ ] **COLL-01**: Session participant can connect to a joined session over WebSocket
-- [ ] **COLL-02**: Session participant can submit insert and delete operations against the shared document
-- [ ] **COLL-03**: Concurrent edits from multiple participants converge to the same final document for every participant
-- [ ] **COLL-04**: The collaboration engine supports multi-character insert and delete operations
+- [x] **COLL-02**: Session participant can submit insert and delete operations against the shared document
+- [x] **COLL-03**: Concurrent edits from multiple participants converge to the same final document for every participant
+- [x] **COLL-04**: The collaboration engine supports multi-character insert and delete operations
 - [ ] **COLL-05**: Session participant can see cursor positions from other active participants in real time
 - [ ] **COLL-06**: Session participant receives join and leave presence events for other participants
 
@@ -46,7 +46,7 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 ### Quality & Docs
 
 - [x] **QUAL-01**: Database schema changes are managed through Flyway migrations
-- [ ] **QUAL-02**: The OT engine has comprehensive JUnit 5 tests covering transform edge cases and three-user convergence
+- [x] **QUAL-02**: The OT engine has comprehensive JUnit 5 tests covering transform edge cases and three-user convergence
 - [ ] **QUAL-03**: Integration tests use Testcontainers to validate persistence, Redis coordination, and execution flows
 - [ ] **DOCS-01**: Developer can start the backend, PostgreSQL, and Redis locally with docker-compose using documented steps
 - [ ] **DOCS-02**: Developer can reference a README with setup instructions, API documentation, architecture notes, and design decisions
@@ -91,9 +91,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SESS-03 | Phase 1 | Complete |
 | SESS-04 | Phase 1 | Complete |
 | COLL-01 | Phase 2 | Pending |
-| COLL-02 | Phase 2 | Pending |
-| COLL-03 | Phase 2 | Pending |
-| COLL-04 | Phase 2 | Pending |
+| COLL-02 | Phase 2 | Complete |
+| COLL-03 | Phase 2 | Complete |
+| COLL-04 | Phase 2 | Complete |
 | COLL-05 | Phase 2 | Pending |
 | COLL-06 | Phase 2 | Pending |
 | DATA-01 | Phase 3 | Pending |
@@ -105,7 +105,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXEC-03 | Phase 4 | Pending |
 | EXEC-04 | Phase 4 | Pending |
 | QUAL-01 | Phase 1 | Complete |
-| QUAL-02 | Phase 2 | Pending |
+| QUAL-02 | Phase 2 | Complete |
 | QUAL-03 | Phase 5 | Pending |
 | DOCS-01 | Phase 5 | Pending |
 | DOCS-02 | Phase 5 | Pending |
