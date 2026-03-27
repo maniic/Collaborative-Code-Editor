@@ -32,13 +32,19 @@ public class SessionCleanupScheduler {
         Instant now = Instant.now();
         List<CodingSessionEntity> expired = codingSessionRepository.findExpiredEmptySessions(now);
 
-        for (CodingSessionEntity session : expired) {
+        for (CodingSessionEntity candidate : expired) {
+            CodingSessionEntity session = codingSessionRepository.findByIdForUpdate(candidate.getId())
+                    .orElse(null);
+            if (session == null || session.getCleanupAfter() == null || session.getCleanupAfter().isAfter(now)) {
+                continue;
+            }
+
             long activeCount = participantRepository.countBySessionIdAndStatus(session.getId(), "ACTIVE");
             if (activeCount == 0) {
                 log.info("Cleaning up expired empty session: {} (invite: {})",
                         session.getId(), session.getInviteCode());
                 codingSessionRepository.delete(session);
-            } else {
+            } else if (session.getEmptySince() != null || session.getCleanupAfter() != null) {
                 // Someone rejoined between cleanup_after being set and now; clear the cleanup window
                 log.info("Skipping cleanup for session {} - has {} active participants",
                         session.getId(), activeCount);

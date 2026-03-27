@@ -159,4 +159,23 @@ class SessionControllerTest {
 
         verifyNoInteractions(sessionService);
     }
+
+    @Test
+    void shouldJoinRejoinedSessionBeforeCleanupAfterOwnerTransfer() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID ownerUserId = UUID.randomUUID();
+        SessionResponse response = new SessionResponse(
+                UUID.randomUUID(), "REJN2345", "JAVA", ownerUserId, 12, 2, Instant.now());
+
+        when(sessionService.joinSession(eq(userId), eq("REJN2345"))).thenReturn(response);
+
+        mockMvc.perform(post("/api/sessions/join")
+                        .with(authentication(authToken(userId)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("inviteCode", "REJN2345"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inviteCode").value("REJN2345"))
+                .andExpect(jsonPath("$.ownerUserId").value(ownerUserId.toString()))
+                .andExpect(jsonPath("$.activeParticipants").value(2));
+    }
 }

@@ -40,6 +40,8 @@ class SessionCleanupSchedulerTest {
 
         when(codingSessionRepository.findExpiredEmptySessions(any(Instant.class)))
                 .thenReturn(List.of(expiredSession));
+        when(codingSessionRepository.findByIdForUpdate(sessionId))
+                .thenReturn(java.util.Optional.of(expiredSession));
         when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE"))
                 .thenReturn(0L);
 
@@ -58,6 +60,8 @@ class SessionCleanupSchedulerTest {
 
         when(codingSessionRepository.findExpiredEmptySessions(any(Instant.class)))
                 .thenReturn(List.of(session));
+        when(codingSessionRepository.findByIdForUpdate(sessionId))
+                .thenReturn(java.util.Optional.of(session));
         when(participantRepository.countBySessionIdAndStatus(sessionId, "ACTIVE"))
                 .thenReturn(1L);
         when(codingSessionRepository.save(any(CodingSessionEntity.class)))
@@ -67,5 +71,28 @@ class SessionCleanupSchedulerTest {
 
         verify(codingSessionRepository, never()).delete(any());
         verify(codingSessionRepository).save(session);
+    }
+
+    @Test
+    void shouldSkipStaleCleanupRaceAfterParticipantRejoins() {
+        UUID sessionId = UUID.randomUUID();
+        CodingSessionEntity staleCandidate = new CodingSessionEntity(
+                sessionId, "RACE2345", "JAVA", UUID.randomUUID(), 12);
+        staleCandidate.setEmptySince(Instant.now().minusSeconds(7200));
+        staleCandidate.setCleanupAfter(Instant.now().minusSeconds(3600));
+
+        CodingSessionEntity rejoinedSession = new CodingSessionEntity(
+                sessionId, "RACE2345", "JAVA", staleCandidate.getOwnerUserId(), 12);
+
+        when(codingSessionRepository.findExpiredEmptySessions(any(Instant.class)))
+                .thenReturn(List.of(staleCandidate));
+        when(codingSessionRepository.findByIdForUpdate(sessionId))
+                .thenReturn(java.util.Optional.of(rejoinedSession));
+
+        scheduler.cleanupExpiredEmptySessions();
+
+        verify(participantRepository, never()).countBySessionIdAndStatus(any(), any());
+        verify(codingSessionRepository, never()).delete(any());
+        verify(codingSessionRepository, never()).save(any());
     }
 }
