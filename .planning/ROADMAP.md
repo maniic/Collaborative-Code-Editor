@@ -104,6 +104,6 @@ Plans:
 | 1. Secure Access and Session Lifecycle | 3/3 | Complete | 2026-03-27 |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4/4 | Complete    | 2026-03-27 |
 | 2. Real-Time OT Collaboration | 1/3 | In Progress|  |
-| 3. Durable Persistence and Multi-Instance Coordination | 0/TBD | Not started | - |
+| 3. Durable Persistence and Multi-Instance Coordination | 2/4 | In Progress|  |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |
 | 5. Integration Hardening and Developer Docs | 0/TBD | Not started | - |
