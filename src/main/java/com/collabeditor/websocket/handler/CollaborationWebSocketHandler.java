@@ -2,11 +2,7 @@ package com.collabeditor.websocket.handler;
 
 import com.collabeditor.auth.persistence.UserRepository;
 import com.collabeditor.auth.persistence.entity.UserEntity;
-import com.collabeditor.ot.model.DeleteOperation;
 import com.collabeditor.ot.model.DocumentSnapshot;
-import com.collabeditor.ot.model.InsertOperation;
-import com.collabeditor.ot.model.TextOperation;
-import com.collabeditor.ot.service.CollaborationSessionRuntime;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.protocol.*;
@@ -26,7 +22,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -201,15 +196,6 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         // Send ack to sender (after durable persist + relay publish)
         sendMessage(session, ServerMessageType.operation_ack,
                 new OperationAckPayload(payload.clientOperationId(), result.revision()));
-
-        // Transform all stored presence selection ranges through the canonical operation
-        presenceService.transformSelectionsForSession(sessionId, result.canonicalOperation());
-
-        // Build broadcast payload from canonical operation
-        OperationAppliedPayload appliedPayload = buildAppliedPayload(userId, result);
-
-        // Broadcast to all local sockets (including sender)
-        broadcast(sessionId, ServerMessageType.operation_applied, appliedPayload);
     }
 
     private void handleUpdatePresence(WebSocketSession session, UUID sessionId, UUID userId,
@@ -239,10 +225,6 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
             // Publish through canonical relay
             gateway.publishPresenceUpdated(sessionId, userId, email, payload.selection());
-
-            // Local fan-out
-            broadcast(sessionId, ServerMessageType.presence_updated,
-                    new PresenceUpdatedPayload(userId, email, payload.selection()));
         }
     }
 
@@ -250,46 +232,6 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         return userRepository.findById(userId)
                 .map(UserEntity::getEmail)
                 .orElse(null);
-    }
-
-    private OperationAppliedPayload buildAppliedPayload(UUID userId, SubmissionResult result) {
-        TextOperation canonical = result.canonicalOperation();
-        if (canonical instanceof InsertOperation insert) {
-            return new OperationAppliedPayload(
-                    userId, result.revision(), "INSERT",
-                    insert.position(), insert.text(), null);
-        } else if (canonical instanceof DeleteOperation delete) {
-            return new OperationAppliedPayload(
-                    userId, result.revision(), "DELETE",
-                    delete.position(), null, delete.length());
-        }
-        throw new IllegalStateException("Unknown operation type: " + canonical.getClass());
-    }
-
-    /**
-     * Broadcasts a message to all local WebSocket sessions for a collaboration room.
-     */
-    private void broadcast(UUID sessionId, ServerMessageType type, Object payload) {
-        Set<WebSocketSession> sockets = registry.getSockets(sessionId);
-        String json;
-        try {
-            json = objectMapper.writeValueAsString(
-                    new CollaborationEnvelope(type.name(), objectMapper.valueToTree(payload)));
-        } catch (Exception e) {
-            log.error("Failed to serialize broadcast message", e);
-            return;
-        }
-
-        TextMessage textMessage = new TextMessage(json);
-        for (WebSocketSession socket : sockets) {
-            if (socket.isOpen()) {
-                try {
-                    socket.sendMessage(textMessage);
-                } catch (IOException e) {
-                    log.warn("Failed to send message to socket {}: {}", socket.getId(), e.getMessage());
-                }
-            }
-        }
     }
 
     private <T> void sendMessage(WebSocketSession session, ServerMessageType type, T payload) throws IOException {

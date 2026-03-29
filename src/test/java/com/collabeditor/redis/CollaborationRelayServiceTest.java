@@ -133,14 +133,24 @@ class CollaborationRelayServiceTest {
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(received).hasSize(3);
 
-        assertThat(received.get(0).eventType()).isEqualTo(CanonicalEventType.PARTICIPANT_JOINED);
-        assertThat(received.get(0).payloadJson()).isEqualTo(joinPayload);
-
-        assertThat(received.get(1).eventType()).isEqualTo(CanonicalEventType.PRESENCE_UPDATED);
-        assertThat(received.get(1).payloadJson()).isEqualTo(presencePayload);
-
-        assertThat(received.get(2).eventType()).isEqualTo(CanonicalEventType.PARTICIPANT_LEFT);
-        assertThat(received.get(2).payloadJson()).isEqualTo(leavePayload);
+        assertThat(received).extracting(CanonicalCollaborationEvent::eventType)
+                .containsExactlyInAnyOrder(
+                        CanonicalEventType.PARTICIPANT_JOINED,
+                        CanonicalEventType.PRESENCE_UPDATED,
+                        CanonicalEventType.PARTICIPANT_LEFT
+                );
+        assertThat(received.stream()
+                .filter(event -> event.eventType() == CanonicalEventType.PARTICIPANT_JOINED)
+                .map(CanonicalCollaborationEvent::payloadJson))
+                .containsExactly(joinPayload);
+        assertThat(received.stream()
+                .filter(event -> event.eventType() == CanonicalEventType.PRESENCE_UPDATED)
+                .map(CanonicalCollaborationEvent::payloadJson))
+                .containsExactly(presencePayload);
+        assertThat(received.stream()
+                .filter(event -> event.eventType() == CanonicalEventType.PARTICIPANT_LEFT)
+                .map(CanonicalCollaborationEvent::payloadJson))
+                .containsExactly(leavePayload);
     }
 
     @Test

@@ -41,7 +41,17 @@ public class PresenceService {
      */
     public void join(UUID sessionId, UUID userId, String email) {
         sessions.computeIfAbsent(sessionId, id -> new ConcurrentHashMap<>())
-                .put(userId, new ParticipantPresence(userId, email, null, 0L));
+                .compute(userId, (ignored, existing) -> {
+                    if (existing == null) {
+                        return new ParticipantPresence(userId, email, null, 0L);
+                    }
+                    return new ParticipantPresence(
+                            userId,
+                            email != null ? email : existing.email,
+                            existing.selection,
+                            existing.lastBroadcastTime
+                    );
+                });
         log.debug("Presence join: userId={} sessionId={}", userId, sessionId);
     }
 
