@@ -1,5 +1,6 @@
 package com.collabeditor.ot;
 
+import com.collabeditor.ot.model.AppliedOperation;
 import com.collabeditor.ot.model.DeleteOperation;
 import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.InsertOperation;

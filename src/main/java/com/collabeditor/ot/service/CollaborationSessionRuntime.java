@@ -37,6 +37,30 @@ public class CollaborationSessionRuntime {
         this.lock = new ReentrantLock();
     }
 
+    /**
+     * Restores a runtime from durable state instead of starting empty.
+     *
+     * <p>This is the explicit entry point for lazy rebuilds from snapshot-plus-replay.
+     * The restored runtime preserves the existing stale-op transform guarantees because
+     * the provided history is used for transform lookups on operations with older base revisions.
+     *
+     * @param sessionId the session identity
+     * @param document  the canonical document text at the given revision
+     * @param revision  the canonical revision number
+     * @param history   the canonical operation history needed for stale-op transforms
+     * @param otService the OT transform service
+     * @return a fully initialized runtime at the given state
+     */
+    public static CollaborationSessionRuntime restore(UUID sessionId, String document,
+                                                       long revision, List<AppliedOperation> history,
+                                                       OperationalTransformService otService) {
+        CollaborationSessionRuntime runtime = new CollaborationSessionRuntime(sessionId, otService);
+        runtime.document.append(document);
+        runtime.revision = revision;
+        runtime.history.addAll(history);
+        return runtime;
+    }
+
     public UUID getSessionId() {
         return sessionId;
     }
