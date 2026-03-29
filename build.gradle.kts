@@ -64,4 +64,6 @@ tasks.withType<Test> {
     // Set Docker API version for docker-java compatibility with Docker 25+ (min API 1.44)
     environment("DOCKER_API_VERSION", "1.44")
     jvmArgs("-DDOCKER_API_VERSION=1.44")
+    // Disable Ryuk for Colima/non-standard Docker socket environments
+    environment("TESTCONTAINERS_RYUK_DISABLED", System.getenv("TESTCONTAINERS_RYUK_DISABLED") ?: "true")
 }
