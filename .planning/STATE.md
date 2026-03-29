@@ -10,8 +10,8 @@ progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 14
-  completed_plans: 12
-  percent: 57
+  completed_plans: 13
+  percent: 64
 ---
 
 # Project State
@@ -26,19 +26,19 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Phase: 3 (durable-persistence-and-multi-instance-coordination) -- IN PROGRESS
-Plan: 2 of 4
-Status: Executing Phase 3 plans -- Plan 02 complete (durable append and snapshot recovery)
-Last activity: 2026-03-29 -- Completed 03-02 durable append, snapshot cadence, and lazy rebuild
+Plan: 3 of 4
+Status: Executing Phase 3 plans -- Plan 03 complete (Redis coordination and canonical relay)
+Last activity: 2026-03-29 -- Completed 03-03 Redis coordination and canonical collaboration relay
 
-Progress: [██████░░░░] 57%
+Progress: [██████▓░░░] 64%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 12
+- Total plans completed: 13
 - Average duration: 10 min
-- Total execution time: 1.97 hours
+- Total execution time: 2.07 hours
 
 **By Phase:**
 
@@ -47,16 +47,17 @@ Progress: [██████░░░░] 57%
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
 | 2. Real-Time OT Collaboration | 3 | 30 min | 10 min |
-| 3. Durable Persistence and Multi-Instance Coordination | 2 | 13 min | 7 min |
+| 3. Durable Persistence and Multi-Instance Coordination | 3 | 19 min | 6 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 01.1-04 (4 min), 02-01 (11 min), 02-02 (9 min), 02-03 (10 min), 03-01 (6 min)
+- Last 5 plans: 02-01 (11 min), 02-02 (9 min), 02-03 (10 min), 03-01 (6 min), 03-02 (7 min)
 - Trend: Stable
 | Phase 03 P01 | 6min | 3 tasks | 9 files |
 | Phase 03 P02 | 7min | 3 tasks | 7 files |
+| Phase 03 P03 | 6min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 03]: Session runtimes rebuild lazily after restart or local eviction — Recovery cost is paid only for active rooms instead of at application boot.
 - [Phase 03]: Cross-instance collaboration fan-out comes from a single canonical Redis relay path and revision gaps force rebuild or resync — Multi-instance delivery must fail safe rather than drift.
 - [Phase 03]: DELETE constraint requires explicit length IS NOT NULL to defeat SQL three-valued logic NULL passthrough
+- [Phase 03]: SET NX PX with random token for per-session distributed locking in Redis
+- [Phase 03]: Deterministic Redis key patterns collab:session:{sessionId}:{lock|revision|active|events}
+- [Phase 03]: Jackson-serialized typed relay payloads for canonical collaboration events via Redis pub/sub
 
 ### Pending Todos
 
@@ -123,6 +127,6 @@ None currently. Phase 3 context is captured and planning may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-29T07:04:26Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-29T08:15:00Z
+Stopped at: Completed 03-03-PLAN.md
 Resume file: None
