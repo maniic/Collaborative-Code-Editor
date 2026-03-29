@@ -4,7 +4,6 @@ import com.collabeditor.auth.persistence.UserRepository;
 import com.collabeditor.auth.persistence.entity.UserEntity;
 import com.collabeditor.execution.model.ExecutionSourceSnapshot;
 import com.collabeditor.ot.model.DocumentSnapshot;
-import com.collabeditor.ot.service.CollaborationSessionRuntime;
 import com.collabeditor.session.persistence.CodingSessionRepository;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.session.persistence.entity.CodingSessionEntity;
@@ -48,34 +47,29 @@ public class ExecutionSourceService {
      * @param sessionId         the coding session to execute against
      * @param requestedByUserId the user requesting execution
      * @return an immutable snapshot of the room state at capture time
-     * @throws IllegalArgumentException if the session does not exist
-     * @throws IllegalStateException    if the requester is not an ACTIVE participant
+     * @throws ExecutionSessionNotFoundException if the session does not exist
+     * @throws ExecutionAccessDeniedException    if the requester is not an ACTIVE participant
      */
     public ExecutionSourceSnapshot capture(UUID sessionId, UUID requestedByUserId) {
-        // Validate session exists
         CodingSessionEntity session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new ExecutionSessionNotFoundException(
                         "Session not found: " + sessionId));
 
-        // Validate requester is an ACTIVE participant
         SessionParticipantEntity participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, requestedByUserId)
-                .orElseThrow(() -> new IllegalStateException(
+                .orElseThrow(() -> new ExecutionAccessDeniedException(
                         "User " + requestedByUserId + " is not a participant of session " + sessionId));
 
         if (!"ACTIVE".equals(participant.getStatus())) {
-            throw new IllegalStateException(
+            throw new ExecutionAccessDeniedException(
                     "User " + requestedByUserId + " is not an ACTIVE participant of session " + sessionId);
         }
 
-        // Resolve requester email
         UserEntity user = userRepository.findById(requestedByUserId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new IllegalStateException(
                         "User not found: " + requestedByUserId));
 
-        // Read the canonical document and revision
-        CollaborationSessionRuntime runtime = snapshotRecoveryService.loadRuntime(sessionId);
-        DocumentSnapshot snapshot = runtime.snapshot();
+        DocumentSnapshot snapshot = snapshotRecoveryService.loadRuntime(sessionId).snapshot();
 
         return new ExecutionSourceSnapshot(
                 sessionId,
@@ -85,5 +79,17 @@ public class ExecutionSourceService {
                 snapshot.revision(),
                 snapshot.document()
         );
+    }
+
+    public static class ExecutionSessionNotFoundException extends RuntimeException {
+        public ExecutionSessionNotFoundException(String message) {
+            super(message);
+        }
+    }
+
+    public static class ExecutionAccessDeniedException extends RuntimeException {
+        public ExecutionAccessDeniedException(String message) {
+            super(message);
+        }
     }
 }

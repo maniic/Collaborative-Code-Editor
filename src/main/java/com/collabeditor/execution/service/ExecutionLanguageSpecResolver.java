@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Resolves the exact runtime contract for each supported language.
@@ -15,6 +16,11 @@ import java.util.Map;
  */
 @Service
 public class ExecutionLanguageSpecResolver {
+
+    private static final Pattern PACKAGE_DECLARATION = Pattern.compile("(?m)^\\s*package\\s+");
+    private static final Pattern MAIN_CLASS_PATTERN = Pattern.compile("(?s)public\\s+class\\s+Main\\b");
+    private static final Pattern MAIN_METHOD_PATTERN =
+            Pattern.compile("(?s)public\\s+static\\s+void\\s+main\\s*\\(\\s*String\\s*\\[\\s*]\\s+args\\s*\\)");
 
     private final ExecutionProperties properties;
 
@@ -59,7 +65,7 @@ public class ExecutionLanguageSpecResolver {
 
     private LanguageSpec resolvePython() {
         return new LanguageSpec(
-                properties.pythonImage(),
+                properties.getPythonImage(),
                 "main.py",
                 List.of("python", "/input/main.py"),
                 Map.of("PYTHONDONTWRITEBYTECODE", "1")
@@ -70,9 +76,9 @@ public class ExecutionLanguageSpecResolver {
         validateJavaSource(sourceCode);
 
         return new LanguageSpec(
-                properties.javaImage(),
+                properties.getJavaImage(),
                 "Main.java",
-                List.of("sh", "-c",
+                List.of("sh", "-lc",
                         "cp /input/Main.java /workspace/Main.java && javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main"),
                 Map.of()
         );
@@ -91,22 +97,20 @@ public class ExecutionLanguageSpecResolver {
                     "Java source is empty. Expected a package-less public class Main with public static void main(String[] args).");
         }
 
-        if (!sourceCode.contains("public class Main")) {
+        if (PACKAGE_DECLARATION.matcher(sourceCode).find()) {
+            throw new IllegalArgumentException(
+                    "Java source must be package-less. Remove the package declaration.");
+        }
+
+        if (!MAIN_CLASS_PATTERN.matcher(sourceCode).find()) {
             throw new IllegalArgumentException(
                     "Java source must contain a package-less 'public class Main'. "
                             + "Found no 'public class Main' declaration.");
         }
 
-        if (!sourceCode.contains("public static void main(String[] args)")) {
+        if (!MAIN_METHOD_PATTERN.matcher(sourceCode).find()) {
             throw new IllegalArgumentException(
                     "Java source must contain 'public static void main(String[] args)' in the Main class.");
-        }
-
-        // Reject packaged classes (must be package-less)
-        String trimmed = sourceCode.trim();
-        if (trimmed.startsWith("package ")) {
-            throw new IllegalArgumentException(
-                    "Java source must be package-less. Remove the package declaration.");
         }
     }
 }

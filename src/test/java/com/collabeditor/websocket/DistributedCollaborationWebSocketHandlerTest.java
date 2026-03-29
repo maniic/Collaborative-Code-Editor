@@ -7,6 +7,7 @@ import com.collabeditor.redis.model.CanonicalCollaborationEvent;
 import com.collabeditor.redis.model.CanonicalEventType;
 import com.collabeditor.redis.service.CollaborationRelayService;
 import com.collabeditor.redis.service.SessionCoordinationService;
+import com.collabeditor.execution.service.ExecutionBroadcastGateway;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.snapshot.service.SnapshotRecoveryService;
 import com.collabeditor.websocket.handler.CollaborationWebSocketHandler;
@@ -306,9 +307,11 @@ class DistributedCollaborationWebSocketHandlerTest {
                 presenceService,
                 objectMapper
         );
+        ExecutionBroadcastGateway executionBroadcastGateway = mock(ExecutionBroadcastGateway.class);
         CollaborationWebSocketHandler handler = new CollaborationWebSocketHandler(
                 registry,
                 gateway,
+                executionBroadcastGateway,
                 participantRepository,
                 userRepository,
                 presenceService,

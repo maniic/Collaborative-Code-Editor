@@ -35,4 +35,48 @@ public record ExecutionProperties(
         if (tmpTmpfsBytes <= 0) tmpTmpfsBytes = 33554432L;
         if (nonRootUser == null || nonRootUser.isBlank()) nonRootUser = "65534:65534";
     }
+
+    public int getCooldownSeconds() {
+        return cooldownSeconds;
+    }
+
+    public int getTimeoutSeconds() {
+        return timeoutSeconds;
+    }
+
+    public int getWorkerCount() {
+        return workerCount;
+    }
+
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    public String getPythonImage() {
+        return pythonImage;
+    }
+
+    public String getJavaImage() {
+        return javaImage;
+    }
+
+    public long getMaxMemoryBytes() {
+        return maxMemoryBytes;
+    }
+
+    public long getNanoCpus() {
+        return nanoCpus;
+    }
+
+    public long getWorkspaceTmpfsBytes() {
+        return workspaceTmpfsBytes;
+    }
+
+    public long getTmpTmpfsBytes() {
+        return tmpTmpfsBytes;
+    }
+
+    public String getNonRootUser() {
+        return nonRootUser;
+    }
 }

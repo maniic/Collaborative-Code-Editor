@@ -15,6 +15,7 @@ import com.collabeditor.websocket.handler.CollaborationWebSocketHandler;
 import com.collabeditor.websocket.protocol.CollaborationEnvelope;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
 import com.collabeditor.websocket.service.DistributedCollaborationGateway;
+import com.collabeditor.execution.service.ExecutionBroadcastGateway;
 import com.collabeditor.websocket.service.PresenceService;
 import com.collabeditor.websocket.service.SubmissionResult;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +44,7 @@ class CollaborationWebSocketHandlerTest {
 
     @Mock private CollaborationSessionRegistry registry;
     @Mock private DistributedCollaborationGateway gateway;
+    @Mock private ExecutionBroadcastGateway executionBroadcastGateway;
     @Mock private SessionParticipantRepository participantRepository;
     @Mock private UserRepository userRepository;
     @Mock private WebSocketSession senderSocket;
@@ -61,7 +63,7 @@ class CollaborationWebSocketHandlerTest {
     @BeforeEach
     void setUp() {
         presenceService = new PresenceService(75);
-        handler = new CollaborationWebSocketHandler(registry, gateway, participantRepository,
+        handler = new CollaborationWebSocketHandler(registry, gateway, executionBroadcastGateway, participantRepository,
                 userRepository, presenceService, objectMapper);
     }
 

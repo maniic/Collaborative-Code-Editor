@@ -8,6 +8,7 @@ import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.protocol.*;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
 import com.collabeditor.websocket.service.DistributedCollaborationGateway;
+import com.collabeditor.execution.service.ExecutionBroadcastGateway;
 import com.collabeditor.websocket.service.PresenceService;
 import com.collabeditor.websocket.service.SubmissionResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,6 +45,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
     private final CollaborationSessionRegistry registry;
     private final DistributedCollaborationGateway gateway;
+    private final ExecutionBroadcastGateway executionBroadcastGateway;
     private final SessionParticipantRepository participantRepository;
     private final UserRepository userRepository;
     private final PresenceService presenceService;
@@ -51,12 +53,14 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
     public CollaborationWebSocketHandler(CollaborationSessionRegistry registry,
                                           DistributedCollaborationGateway gateway,
+                                          ExecutionBroadcastGateway executionBroadcastGateway,
                                           SessionParticipantRepository participantRepository,
                                           UserRepository userRepository,
                                           PresenceService presenceService,
                                           ObjectMapper objectMapper) {
         this.registry = registry;
         this.gateway = gateway;
+        this.executionBroadcastGateway = executionBroadcastGateway;
         this.participantRepository = participantRepository;
         this.userRepository = userRepository;
         this.presenceService = presenceService;
@@ -79,6 +83,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
         // Bootstrap from durable state via the distributed gateway
         DocumentSnapshot snapshot = gateway.connectSnapshot(sessionId);
+        executionBroadcastGateway.ensureSessionSubscription(sessionId);
 
         // Build participant list from active participants in the session
         List<ParticipantInfo> participants = participantRepository
@@ -150,6 +155,9 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         String email = presenceService.getEmail(sessionId, userId);
 
         registry.removeSocket(sessionId, session);
+        if (registry.getSockets(sessionId).isEmpty()) {
+            executionBroadcastGateway.unsubscribeSession(sessionId);
+        }
         presenceService.leave(sessionId, userId);
 
         // Publish participant_left through canonical relay

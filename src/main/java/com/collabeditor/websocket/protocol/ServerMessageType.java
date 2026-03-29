@@ -11,5 +11,6 @@ public enum ServerMessageType {
     resync_required,
     participant_joined,
     participant_left,
-    presence_updated
+    presence_updated,
+    execution_updated
 }
