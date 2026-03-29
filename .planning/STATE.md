@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-29T10:06:12.623Z"
-last_activity: 2026-03-29 -- Completed Phase 3 durable persistence and multi-instance coordination
+stopped_at: Phase 4 complete
+last_updated: "2026-03-29T21:27:03.512Z"
+last_activity: 2026-03-29 -- Completed Phase 4 sandboxed code execution
 progress:
   total_phases: 6
-  completed_phases: 4
-  total_plans: 14
-  completed_plans: 14
-  percent: 67
+  completed_phases: 5
+  total_plans: 18
+  completed_plans: 18
+  percent: 83
 ---
 
 # Project State
@@ -21,24 +21,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 4 planning and execution preparation
+**Current focus:** Phase 5 planning and verification preparation
 
 ## Current Position
 
-Phase: 4
+Phase: 5
 Plan: Not started
-Status: Phase 3 complete -- ready to plan Phase 4
-Last activity: 2026-03-29 -- Completed Phase 3 durable persistence and multi-instance coordination
+Status: Phase 4 complete -- ready to plan Phase 5
+Last activity: 2026-03-29 -- Completed Phase 4 sandboxed code execution
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 14
-- Average duration: 11 min
-- Total execution time: 2.54 hours
+- Total plans completed: 18
+- Average duration: 14 min
+- Total execution time: 4.20 hours
 
 **By Phase:**
 
@@ -48,18 +48,18 @@ Progress: [███████░░░] 67%
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
 | 2. Real-Time OT Collaboration | 3 | 30 min | 10 min |
 | 3. Durable Persistence and Multi-Instance Coordination | 4 | 47 min | 12 min |
-| 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
+| 4. Sandboxed Code Execution | 4 | 100 min | 25 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-03 (10 min), 03-01 (6 min), 03-02 (7 min), 03-03 (6 min), 03-04 (28 min)
-- Trend: Mixed
+- Last 5 plans: 03-04 (28 min), 04-01 (18 min), 04-02 (24 min), 04-03 (28 min), 04-04 (30 min)
+- Trend: Rising complexity
 
-| Phase 03 P01 | 6min | 3 tasks | 9 files |
-| Phase 03 P02 | 7min | 3 tasks | 7 files |
-| Phase 03 P03 | 6min | 3 tasks | 11 files |
-| Phase 03 P04 | 28min | 3 tasks | 6 files |
+| Phase 04 P01 | 18min | 3 tasks | 5 files |
+| Phase 04 P02 | 24min | 3 tasks | 5 files |
+| Phase 04 P03 | 28min | 3 tasks | 11 files |
+| Phase 04 P04 | 30min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -116,6 +116,11 @@ Recent decisions affecting current work:
 - [Phase 03]: Local sockets consume accepted operations and presence updates only through the canonical Redis relay path, including on the origin instance. — Keeps single-path fan-out semantics across all backend nodes.
 - [Phase 03]: Relay revision gaps evict the cached runtime, rebuild durable state, and emit resync_required rather than continuing on stale memory. — Prevents silent divergence after missed pub/sub events.
 - [Phase 03]: Presence join preserves existing selection and throttle timestamps for already-tracked users. — Self-relayed participant events must not reset local cursor behavior.
+- [Phase 04]: Execution admission snapshots the persisted canonical room document, immutable room language, and source revision before queueing. — Runs must execute the server-authoritative room state rather than client-provided source.
+- [Phase 04]: Python and Java execution use fixed runtime contracts and docker-java with explicit Docker/Apache HTTP version pinning. — Phase 4 should stay predictable and avoid shelling out to docker run.
+- [Phase 04]: Sandbox inputs are bind-mounted from a home-directory workspace and writable runtime paths are tmpfs mounts owned by uid/gid 65534. — Keeps the filesystem restrictive while still allowing non-root Java compilation on the local Docker/Colima setup.
+- [Phase 04]: Execution lifecycle updates relay through Redis and broadcast on the existing room websocket as execution_updated. — Async execution progress must remain room-visible across backend instances.
+- [Phase 04]: Redis listener callbacks run synchronously for execution events. — Preserves QUEUED → RUNNING → terminal ordering on each node.
 
 ### Pending Todos
 
@@ -128,10 +133,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None currently. Phase 4 planning can begin.
+None currently. Phase 5 planning can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-29T10:06:12.620Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-sandboxed-code-execution/04-CONTEXT.md
+Last session: 2026-03-29T21:24:16Z
+Stopped at: Phase 4 complete
+Resume file: .planning/phases/04-sandboxed-code-execution/04-VERIFICATION.md

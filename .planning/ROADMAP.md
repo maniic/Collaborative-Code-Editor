@@ -14,7 +14,7 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 - [x] **Phase 01.1: Fix Phase 1 auth, session, and verification gaps (INSERTED)** - Remediate security, concurrency, and verification issues discovered during Phase 1 review before Phase 2 begins. (completed 2026-03-27)
 - [x] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence. (completed 2026-03-27)
 - [x] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances. (completed 2026-03-29)
-- [ ] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments.
+- [x] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments. (completed 2026-03-29)
 - [ ] **Phase 5: Integration Hardening and Developer Docs** - The full stack is verifiable via integration tests and reproducible local setup docs.
 
 ## Phase Details
@@ -96,7 +96,13 @@ Plans:
   2. Execution supports both Python and Java source documents.
   3. Every execution enforces memory, CPU, timeout, no-network, read-only filesystem, and non-root isolation constraints.
   4. Execution requests are handled by a bounded queue and rejected or delayed according to one execution per user every five seconds.
-**Plans**: TBD
+**Plans**: 4/4 plans complete
+
+Plans:
+- [x] 04-01-PLAN.md - Establish the execution admission and durable state foundation for Phase 4
+- [x] 04-02-PLAN.md - Implement the concrete Docker sandbox runner and language runtime contracts for Phase 4
+- [x] 04-03-PLAN.md - Implement asynchronous execution orchestration, distributed cooldown, and room-visible lifecycle events for Phase 4
+- [x] 04-04-PLAN.md - Finish Phase 4 with real Docker-backed verification and execution-path hardening
 
 ### Phase 5: Integration Hardening and Developer Docs
 **Goal**: Developers can reproduce, validate, and understand the system end to end from a clean local environment.
@@ -116,5 +122,5 @@ Plans:
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4/4 | Complete    | 2026-03-27 |
 | 2. Real-Time OT Collaboration | 3/3 | Complete | 2026-03-27 |
 | 3. Durable Persistence and Multi-Instance Coordination | 4/4 | Complete | 2026-03-29 |
-| 4. Sandboxed Code Execution | 0/TBD | Not started | - |
+| 4. Sandboxed Code Execution | 4/4 | Complete | 2026-03-29 |
 | 5. Integration Hardening and Developer Docs | 0/TBD | Not started | - |

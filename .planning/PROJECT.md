@@ -10,7 +10,7 @@ The OT engine must guarantee document convergence — when multiple users edit s
 
 ## Current State
 
-Phase 3 is complete. Collaboration state now persists accepted operations and snapshots in PostgreSQL, rebuilds runtimes lazily from durable state, and relays canonical collaboration events across Redis-backed backend instances without bypassing the shared fan-out path. Phase 4 is unblocked.
+Phase 4 is complete. Session participants can now enqueue canonical room code through an authenticated REST endpoint, execute Python and Java in constrained Docker sandboxes, and receive room-visible `execution_updated` lifecycle events over the existing websocket. Phase 5 is now focused on integration hardening and developer onboarding docs.
 
 ## Requirements
 
@@ -24,15 +24,14 @@ Phase 3 is complete. Collaboration state now persists accepted operations and sn
 - [x] PostgreSQL durability for operation log, snapshots, and execution-history foundation
 - [x] Snapshot-plus-replay recovery for collaboration runtime rebuilds
 - [x] Redis coordination and canonical pub/sub relay for 2-3 backend instances
+- [x] Docker-sandboxed execution from canonical room state with durable lifecycle history
+- [x] Fixed Python and Java runtime contracts with live Docker execution proof
+- [x] Redis-backed execution cooldown, bounded queueing, and room-wide lifecycle relay delivery
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Sandboxed code execution via Docker containers (docker-java library)
-- [ ] Execution resource limits: 256MB memory, 0.5 CPU, no network, read-only FS, non-root, 10s timeout
-- [ ] Python and Java language support for execution
-- [ ] Bounded thread pool execution queue with rate limiting (1 execution/user/5 seconds)
 - [ ] Integration tests with Testcontainers
 - [ ] docker-compose.yml for full stack (app, PostgreSQL, Redis)
 - [ ] README with architecture diagram, setup instructions, API docs, and design decisions
@@ -72,11 +71,11 @@ Session model: each session is a room identified by UUID, with a programming lan
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| OT over CRDT | OT is more intuitive for linear document editing, server-authoritative model simplifies consistency, and implementing it from scratch demonstrates deeper algorithmic understanding | — Pending |
-| Redis over Kafka | Kafka is overkill for 2-3 instances; Redis pub/sub is lightweight, already needed for caching/counters, and reduces infrastructure complexity | — Pending |
-| Docker for sandboxing | Strongest isolation model, proven security boundary, supports any language runtime, resource limits are first-class | — Pending |
-| Server-authoritative OT | Server maintains canonical revision history and transforms stale client ops — simpler than peer-to-peer OT, eliminates divergence risk | — Pending |
-| Multi-character operations | Operations carry position + string (not single-char) — reduces message volume, handles paste/bulk-delete naturally, more realistic for a real editor | — Pending |
+| OT over CRDT | OT is more intuitive for linear document editing, server-authoritative model simplifies consistency, and implementing it from scratch demonstrates deeper algorithmic understanding | Implemented in Phase 2 with convergence coverage and carried forward through durable/distributed recovery in Phase 3 |
+| Redis over Kafka | Kafka is overkill for 2-3 instances; Redis pub/sub is lightweight, already needed for caching/counters, and reduces infrastructure complexity | Implemented in Phases 3-4 for collaboration relay, revision coordination, execution cooldown, and execution lifecycle fan-out |
+| Docker for sandboxing | Strongest isolation model, proven security boundary, supports any language runtime, resource limits are first-class | Implemented in Phase 4 with docker-java, fixed Python/Java contracts, tmpfs-only writable paths, and live Docker verification |
+| Server-authoritative OT | Server maintains canonical revision history and transforms stale client ops — simpler than peer-to-peer OT, eliminates divergence risk | Implemented in Phase 2 and reinforced by durable canonical persistence and relay behavior in Phase 3 |
+| Multi-character operations | Operations carry position + string (not single-char) — reduces message volume, handles paste/bulk-delete naturally, more realistic for a real editor | Implemented in Phase 2 and persisted as canonical operation history in Phase 3 |
 
 ---
-*Last updated: 2026-03-29 after Phase 3 completion*
+*Last updated: 2026-03-29 after Phase 4 completion*

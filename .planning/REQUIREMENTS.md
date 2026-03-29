@@ -38,10 +38,10 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 
 ### Code Execution
 
-- [ ] **EXEC-01**: Session participant can execute the current code document inside a Docker sandbox
-- [ ] **EXEC-02**: Code execution supports both Python and Java
-- [ ] **EXEC-03**: Each execution enforces memory, CPU, timeout, no-network, read-only filesystem, and non-root isolation limits
-- [ ] **EXEC-04**: Code execution requests are rate limited to one run per user every five seconds and are processed through a bounded queue
+- [x] **EXEC-01**: Session participant can execute the current code document inside a Docker sandbox
+- [x] **EXEC-02**: Code execution supports both Python and Java
+- [x] **EXEC-03**: Each execution enforces memory, CPU, timeout, no-network, read-only filesystem, and non-root isolation limits
+- [x] **EXEC-04**: Code execution requests are rate limited to one run per user every five seconds and are processed through a bounded queue
 
 ### Quality & Docs
 
@@ -100,10 +100,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-02 | Phase 3 | Complete |
 | DATA-03 | Phase 3 | Complete |
 | DATA-04 | Phase 3 | Complete |
-| EXEC-01 | Phase 4 | Pending |
-| EXEC-02 | Phase 4 | Pending |
-| EXEC-03 | Phase 4 | Pending |
-| EXEC-04 | Phase 4 | Pending |
+| EXEC-01 | Phase 4 | Complete |
+| EXEC-02 | Phase 4 | Complete |
+| EXEC-03 | Phase 4 | Complete |
+| EXEC-04 | Phase 4 | Complete |
 | QUAL-01 | Phase 1 | Complete |
 | QUAL-02 | Phase 2 | Complete |
 | QUAL-03 | Phase 5 | Pending |
@@ -117,4 +117,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-03-26*
-*Last updated: 2026-03-26 after roadmap creation*
+*Last updated: 2026-03-29 after Phase 4 completion*
