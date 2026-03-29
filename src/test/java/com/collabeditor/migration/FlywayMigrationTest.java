@@ -98,6 +98,34 @@ class FlywayMigrationTest {
     }
 
     @Test
+    void migrationCreatesSessionOperationsTable() throws SQLException {
+        List<String> columns = getColumnNames("session_operations");
+        assertThat(columns).contains(
+                "id", "session_id", "revision", "author_user_id",
+                "client_operation_id", "operation_type", "position",
+                "text", "length", "created_at"
+        );
+    }
+
+    @Test
+    void migrationCreatesDocumentSnapshotsTable() throws SQLException {
+        List<String> columns = getColumnNames("document_snapshots");
+        assertThat(columns).contains(
+                "id", "session_id", "revision", "document", "created_at"
+        );
+    }
+
+    @Test
+    void migrationCreatesExecutionHistoryTable() throws SQLException {
+        List<String> columns = getColumnNames("execution_history");
+        assertThat(columns).contains(
+                "id", "session_id", "requested_by_user_id", "language",
+                "source_revision", "status", "stdout", "stderr",
+                "exit_code", "created_at", "started_at", "finished_at"
+        );
+    }
+
+    @Test
     void migrationCreatesSessionParticipantsTable() throws SQLException {
         List<String> columns = getColumnNames("session_participants");
         assertThat(columns).contains(
