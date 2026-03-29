@@ -12,6 +12,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
@@ -409,6 +411,82 @@ class CollaborationSessionRuntimeTest {
                 sb.append((char) ('a' + rng.nextInt(26)));
             }
             return sb.toString();
+        }
+    }
+
+    @Nested
+    @DisplayName("Restore from persisted state")
+    class RestoreFromPersistedState {
+
+        private final OperationalTransformService otService = new OperationalTransformService();
+
+        @Test
+        @DisplayName("restored runtime reports the provided document and revision immediately")
+        void restoredRuntimeReportsProvidedState() {
+            String document = "hello world";
+            long revision = 5;
+            List<AppliedOperation> history = new ArrayList<>();
+
+            CollaborationSessionRuntime restored = CollaborationSessionRuntime.restore(
+                    sessionId, document, revision, history, otService);
+
+            DocumentSnapshot snapshot = restored.snapshot();
+            assertThat(snapshot.document()).isEqualTo("hello world");
+            assertThat(snapshot.revision()).isEqualTo(5);
+            assertThat(restored.getSessionId()).isEqualTo(sessionId);
+        }
+
+        @Test
+        @DisplayName("restored runtime still transforms stale operations against restored history")
+        void restoredRuntimeTransformsStaleOperationsAgainstRestoredHistory() {
+            // Build a runtime, apply some operations, then restore from that state
+            CollaborationSessionRuntime original = new CollaborationSessionRuntime(sessionId, otService);
+            original.applyClientOperation(new InsertOperation(userA, 0L, "op1", 0, "hello"));
+            original.applyClientOperation(new InsertOperation(userA, 1L, "op2", 5, " world"));
+            // Original is now at revision 2, document = "hello world"
+
+            // Extract history from the original by replaying
+            List<AppliedOperation> history = new ArrayList<>();
+            history.add(new AppliedOperation(1, new InsertOperation(userA, 0L, "op1", 0, "hello")));
+            history.add(new AppliedOperation(2, new InsertOperation(userA, 1L, "op2", 5, " world")));
+
+            CollaborationSessionRuntime restored = CollaborationSessionRuntime.restore(
+                    sessionId, "hello world", 2, history, otService);
+
+            // Now a stale op from userB based on revision 0 should be transformed
+            InsertOperation staleOp = new InsertOperation(userB, 0L, "op3", 0, "X");
+            ApplyResult result = restored.applyClientOperation(staleOp);
+
+            // userB > userA lexicographically, so userA wins left position at same-pos ties
+            // transform against op1 (insert 0, "hello"): B shifts right by 5 -> insert(5, "X")
+            // transform against op2 (insert 5, " world"): same position, B > A -> insert(11, "X")
+            assertThat(result.revision()).isEqualTo(3);
+            assertThat(result.snapshot().document()).isEqualTo("hello worldX");
+        }
+
+        @Test
+        @DisplayName("deterministic convergence after a restore-then-apply sequence")
+        void deterministicConvergenceAfterRestoreThenApply() {
+            // Restore with some existing state
+            List<AppliedOperation> history = new ArrayList<>();
+            history.add(new AppliedOperation(1, new InsertOperation(userA, 0L, "op1", 0, "AB")));
+            history.add(new AppliedOperation(2, new InsertOperation(userA, 1L, "op2", 2, "CD")));
+
+            CollaborationSessionRuntime restored = CollaborationSessionRuntime.restore(
+                    sessionId, "ABCD", 2, history, otService);
+
+            // Apply new operations from different users
+            ApplyResult r1 = restored.applyClientOperation(
+                    new InsertOperation(userB, 2L, "op3", 4, "EF"));
+            assertThat(r1.snapshot().document()).isEqualTo("ABCDEF");
+
+            // Stale op from userC against revision 1
+            ApplyResult r2 = restored.applyClientOperation(
+                    new InsertOperation(userC, 1L, "op4", 2, "X"));
+            // transform against op2 (insert 2, "CD"): C > A -> shifts right by 2 -> insert(4, "X")
+            // transform against op3 (insert 4, "EF"): C > B -> shifts right by 2 -> insert(6, "X")
+            assertThat(r2.revision()).isEqualTo(4);
+            assertThat(r2.snapshot().document()).isEqualTo("ABCDEFX");
         }
     }
 }
