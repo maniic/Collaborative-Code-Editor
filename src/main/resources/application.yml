@@ -37,3 +37,15 @@ app:
       key-prefix: collab
       lock-ttl-ms: 5000
       session-ttl-seconds: 1800
+  execution:
+    cooldown-seconds: 5
+    timeout-seconds: 10
+    worker-count: 2
+    queue-capacity: 8
+    python-image: python:3.12-slim
+    java-image: eclipse-temurin:17-jdk-jammy
+    max-memory-bytes: 268435456
+    nano-cpus: 500000000
+    workspace-tmpfs-bytes: 67108864
+    tmp-tmpfs-bytes: 33554432
+    non-root-user: "65534:65534"

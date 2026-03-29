@@ -38,6 +38,10 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.5")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.5")
 
+    // Docker (code execution sandbox)
+    implementation("com.github.docker-java:docker-java-core:3.4.1")
+    implementation("com.github.docker-java:docker-java-transport-httpclient5:3.4.1")
+
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
