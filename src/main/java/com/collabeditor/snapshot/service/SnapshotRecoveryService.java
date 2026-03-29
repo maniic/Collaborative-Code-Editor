@@ -67,8 +67,16 @@ public class SnapshotRecoveryService {
                     .map(this::toAppliedOperation)
                     .collect(Collectors.toList());
 
+            // Replay later operations on top of the snapshot document
+            String document = snap.getDocument();
+            long revision = snap.getRevision();
+            for (AppliedOperation applied : history) {
+                document = otService.apply(document, applied.operation());
+                revision = applied.revision();
+            }
+
             return CollaborationSessionRuntime.restore(
-                    sessionId, snap.getDocument(), snap.getRevision(), history, otService);
+                    sessionId, document, revision, history, otService);
         } else {
             // No snapshot exists: rebuild from empty document with full operation list
             List<SessionOperationEntity> allOps =
