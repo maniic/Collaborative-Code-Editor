@@ -178,6 +178,80 @@ class FlywayMigrationTest {
         );
     }
 
+    @Test
+    void sessionOperationsRejectsDuplicateSessionRevision() {
+        // Same (session_id, revision) should be rejected by unique constraint
+        String userId = "c0000000-0000-0000-0000-000000000001";
+        String sessionIdStr = "d0000000-0000-0000-0000-000000000001";
+        jdbcTemplate.update(
+                "INSERT INTO users (id, email, password_hash) VALUES ('" + userId + "', 'dup-rev@example.com', 'hash')"
+        );
+        jdbcTemplate.update(
+                "INSERT INTO coding_sessions (id, invite_code, language, owner_user_id) " +
+                "VALUES ('" + sessionIdStr + "', 'DREV1234', 'JAVA', '" + userId + "')"
+        );
+        // First operation at revision 1 succeeds
+        jdbcTemplate.update(
+                "INSERT INTO session_operations (id, session_id, revision, author_user_id, client_operation_id, operation_type, position, text) " +
+                "VALUES (gen_random_uuid(), '" + sessionIdStr + "', 1, '" + userId + "', 'op-a', 'INSERT', 0, 'hello')"
+        );
+
+        // Second operation with same (session_id, revision) should fail
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO session_operations (id, session_id, revision, author_user_id, client_operation_id, operation_type, position, text) " +
+                        "VALUES (gen_random_uuid(), '" + sessionIdStr + "', 1, '" + userId + "', 'op-b', 'INSERT', 0, 'world')"
+                )
+        );
+    }
+
+    @Test
+    void insertOperationRowCannotSetLength() {
+        // INSERT operation row must have text NOT NULL and length NULL
+        String userId = "c0000000-0000-0000-0000-000000000002";
+        String sessionIdStr = "d0000000-0000-0000-0000-000000000002";
+        jdbcTemplate.update(
+                "INSERT INTO users (id, email, password_hash) VALUES ('" + userId + "', 'ins-len@example.com', 'hash')"
+        );
+        jdbcTemplate.update(
+                "INSERT INTO coding_sessions (id, invite_code, language, owner_user_id) " +
+                "VALUES ('" + sessionIdStr + "', 'ILEN1234', 'JAVA', '" + userId + "')"
+        );
+
+        // INSERT operation with length set should fail
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO session_operations (id, session_id, revision, author_user_id, client_operation_id, operation_type, position, text, length) " +
+                        "VALUES (gen_random_uuid(), '" + sessionIdStr + "', 1, '" + userId + "', 'op-ins', 'INSERT', 0, 'hello', 5)"
+                )
+        );
+    }
+
+    @Test
+    void deleteOperationRowCannotOmitLength() {
+        // DELETE operation row must have text NULL and length > 0
+        String userId = "c0000000-0000-0000-0000-000000000003";
+        String sessionIdStr = "d0000000-0000-0000-0000-000000000003";
+        jdbcTemplate.update(
+                "INSERT INTO users (id, email, password_hash) VALUES ('" + userId + "', 'del-nolen@example.com', 'hash')"
+        );
+        jdbcTemplate.update(
+                "INSERT INTO coding_sessions (id, invite_code, language, owner_user_id) " +
+                "VALUES ('" + sessionIdStr + "', 'DLEN1234', 'JAVA', '" + userId + "')"
+        );
+
+        // DELETE operation without length should fail
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.springframework.dao.DataIntegrityViolationException.class,
+                () -> jdbcTemplate.update(
+                        "INSERT INTO session_operations (id, session_id, revision, author_user_id, client_operation_id, operation_type, position) " +
+                        "VALUES (gen_random_uuid(), '" + sessionIdStr + "', 1, '" + userId + "', 'op-del', 'DELETE', 0)"
+                )
+        );
+    }
+
     private List<String> getColumnNames(String tableName) throws SQLException {
         List<String> columns = new ArrayList<>();
         try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {

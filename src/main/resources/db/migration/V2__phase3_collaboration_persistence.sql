@@ -30,7 +30,7 @@ CREATE TABLE session_operations (
 
     -- DELETE operations require null text and length > 0
     CONSTRAINT chk_session_operations_delete
-        CHECK (operation_type != 'DELETE' OR (text IS NULL AND length > 0)),
+        CHECK (operation_type != 'DELETE' OR (text IS NULL AND length IS NOT NULL AND length > 0)),
 
     -- One canonical revision per session
     CONSTRAINT uq_session_operations_session_revision
