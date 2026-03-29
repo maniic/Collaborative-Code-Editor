@@ -11,6 +11,8 @@ public interface SessionOperationRepository extends JpaRepository<SessionOperati
 
     List<SessionOperationEntity> findBySessionIdAndRevisionGreaterThanOrderByRevisionAsc(UUID sessionId, long revision);
 
+    List<SessionOperationEntity> findBySessionIdOrderByRevisionAsc(UUID sessionId);
+
     Optional<SessionOperationEntity> findTopBySessionIdOrderByRevisionDesc(UUID sessionId);
 
     Optional<SessionOperationEntity> findBySessionIdAndRevision(UUID sessionId, long revision);
