@@ -7,12 +7,13 @@ import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.InsertOperation;
 import com.collabeditor.ot.model.TextOperation;
 import com.collabeditor.ot.service.CollaborationSessionRuntime;
-import com.collabeditor.ot.service.CollaborationSessionRuntime.ApplyResult;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
 import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.protocol.*;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
+import com.collabeditor.websocket.service.DistributedCollaborationGateway;
 import com.collabeditor.websocket.service.PresenceService;
+import com.collabeditor.websocket.service.SubmissionResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,11 +33,11 @@ import java.util.UUID;
  * Handles raw WebSocket collaboration messages for a session room.
  *
  * <p>On connect: sends {@code document_sync} with current document, revision,
- * and participant snapshot.
+ * and participant snapshot via the {@link DistributedCollaborationGateway}.
  *
- * <p>On message: deserializes {@code submit_operation}, delegates to
- * {@link CollaborationSessionRuntime}, sends {@code operation_ack} to sender
- * and broadcasts {@code operation_applied} to all room sockets.
+ * <p>On message: deserializes {@code submit_operation}, delegates to the gateway
+ * for durable coordination, sends {@code operation_ack} to sender and publishes
+ * canonical events through the Redis relay path.
  *
  * <p>On error: sends {@code operation_error} for validation failures,
  * {@code resync_required} for unrecoverable desyncs.
@@ -47,17 +48,20 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(CollaborationWebSocketHandler.class);
 
     private final CollaborationSessionRegistry registry;
+    private final DistributedCollaborationGateway gateway;
     private final SessionParticipantRepository participantRepository;
     private final UserRepository userRepository;
     private final PresenceService presenceService;
     private final ObjectMapper objectMapper;
 
     public CollaborationWebSocketHandler(CollaborationSessionRegistry registry,
+                                          DistributedCollaborationGateway gateway,
                                           SessionParticipantRepository participantRepository,
                                           UserRepository userRepository,
                                           PresenceService presenceService,
                                           ObjectMapper objectMapper) {
         this.registry = registry;
+        this.gateway = gateway;
         this.participantRepository = participantRepository;
         this.userRepository = userRepository;
         this.presenceService = presenceService;
@@ -78,9 +82,8 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         registry.addSocket(sessionId, session);
         presenceService.join(sessionId, userId, email);
 
-        // Get or create runtime and send document_sync
-        CollaborationSessionRuntime runtime = registry.getOrCreateRuntime(sessionId);
-        DocumentSnapshot snapshot = runtime.snapshot();
+        // Bootstrap from durable state via the distributed gateway
+        DocumentSnapshot snapshot = gateway.connectSnapshot(sessionId);
 
         // Build participant list from active participants in the session
         List<ParticipantInfo> participants = participantRepository
@@ -94,9 +97,8 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
 
         sendMessage(session, ServerMessageType.document_sync, syncPayload);
 
-        // Broadcast participant_joined to all room sockets
-        broadcast(sessionId, ServerMessageType.participant_joined,
-                new ParticipantJoinedPayload(userId, email));
+        // Publish participant_joined through canonical relay
+        gateway.publishParticipantJoined(sessionId, userId, email);
     }
 
     @Override
@@ -155,9 +157,8 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         registry.removeSocket(sessionId, session);
         presenceService.leave(sessionId, userId);
 
-        // Broadcast participant_left to remaining room sockets
-        broadcast(sessionId, ServerMessageType.participant_left,
-                new ParticipantLeftPayload(userId, email));
+        // Publish participant_left through canonical relay
+        gateway.publishParticipantLeft(sessionId, userId, email);
     }
 
     private void handleSubmitOperation(WebSocketSession session, UUID sessionId, UUID userId,
@@ -184,31 +185,20 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        // Build TextOperation from payload
-        TextOperation operation;
+        // Delegate to the distributed gateway for the full durable coordination path
+        SubmissionResult result;
         try {
-            operation = buildOperation(payload, userId);
+            result = gateway.submitOperation(sessionId, userId, payload);
         } catch (IllegalArgumentException e) {
-            sendMessage(session, ServerMessageType.operation_error,
-                    new OperationErrorPayload(payload.clientOperationId(), e.getMessage()));
-            return;
-        }
-
-        // Apply through runtime
-        CollaborationSessionRuntime runtime = registry.getOrCreateRuntime(sessionId);
-        ApplyResult result;
-        try {
-            result = runtime.applyClientOperation(operation);
-        } catch (IllegalArgumentException e) {
-            // Future revision or other validation failure — send resync
-            DocumentSnapshot snapshot = runtime.snapshot();
+            // Future revision or other validation failure -- send resync
+            DocumentSnapshot snapshot = gateway.connectSnapshot(sessionId);
             sendMessage(session, ServerMessageType.resync_required,
                     new ResyncRequiredPayload(snapshot.document(), snapshot.revision(),
                             "Operation rejected: " + e.getMessage()));
             return;
         }
 
-        // Send ack to sender
+        // Send ack to sender (after durable persist + relay publish)
         sendMessage(session, ServerMessageType.operation_ack,
                 new OperationAckPayload(payload.clientOperationId(), result.revision()));
 
@@ -218,7 +208,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         // Build broadcast payload from canonical operation
         OperationAppliedPayload appliedPayload = buildAppliedPayload(userId, result);
 
-        // Broadcast to all room sockets (including sender)
+        // Broadcast to all local sockets (including sender)
         broadcast(sessionId, ServerMessageType.operation_applied, appliedPayload);
     }
 
@@ -246,6 +236,11 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         if (presenceService.shouldBroadcast(sessionId, userId)) {
             presenceService.markBroadcast(sessionId, userId);
             String email = presenceService.getEmail(sessionId, userId);
+
+            // Publish through canonical relay
+            gateway.publishPresenceUpdated(sessionId, userId, email, payload.selection());
+
+            // Local fan-out
             broadcast(sessionId, ServerMessageType.presence_updated,
                     new PresenceUpdatedPayload(userId, email, payload.selection()));
         }
@@ -257,28 +252,7 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
                 .orElse(null);
     }
 
-    private TextOperation buildOperation(SubmitOperationPayload payload, UUID userId) {
-        return switch (payload.operationType()) {
-            case "INSERT" -> {
-                if (payload.text() == null || payload.text().isEmpty()) {
-                    throw new IllegalArgumentException("INSERT operation requires non-empty text");
-                }
-                yield new InsertOperation(userId, payload.baseRevision(),
-                        payload.clientOperationId(), payload.position(), payload.text());
-            }
-            case "DELETE" -> {
-                if (payload.length() == null || payload.length() <= 0) {
-                    throw new IllegalArgumentException("DELETE operation requires positive length");
-                }
-                yield new DeleteOperation(userId, payload.baseRevision(),
-                        payload.clientOperationId(), payload.position(), payload.length());
-            }
-            default -> throw new IllegalArgumentException(
-                    "Unknown operationType: " + payload.operationType());
-        };
-    }
-
-    private OperationAppliedPayload buildAppliedPayload(UUID userId, ApplyResult result) {
+    private OperationAppliedPayload buildAppliedPayload(UUID userId, SubmissionResult result) {
         TextOperation canonical = result.canonicalOperation();
         if (canonical instanceof InsertOperation insert) {
             return new OperationAppliedPayload(
@@ -292,6 +266,9 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         throw new IllegalStateException("Unknown operation type: " + canonical.getClass());
     }
 
+    /**
+     * Broadcasts a message to all local WebSocket sessions for a collaboration room.
+     */
     private void broadcast(UUID sessionId, ServerMessageType type, Object payload) {
         Set<WebSocketSession> sockets = registry.getSockets(sessionId);
         String json;

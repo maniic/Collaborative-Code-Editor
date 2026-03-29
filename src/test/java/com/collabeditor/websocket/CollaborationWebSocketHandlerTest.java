@@ -7,7 +7,6 @@ import com.collabeditor.ot.model.DocumentSnapshot;
 import com.collabeditor.ot.model.InsertOperation;
 import com.collabeditor.ot.model.TextOperation;
 import com.collabeditor.ot.service.CollaborationSessionRuntime;
-import com.collabeditor.ot.service.CollaborationSessionRuntime.ApplyResult;
 import com.collabeditor.ot.service.OperationalTransformService;
 import com.collabeditor.websocket.model.SelectionRange;
 import com.collabeditor.session.persistence.SessionParticipantRepository;
@@ -15,7 +14,9 @@ import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.websocket.handler.CollaborationWebSocketHandler;
 import com.collabeditor.websocket.protocol.CollaborationEnvelope;
 import com.collabeditor.websocket.service.CollaborationSessionRegistry;
+import com.collabeditor.websocket.service.DistributedCollaborationGateway;
 import com.collabeditor.websocket.service.PresenceService;
+import com.collabeditor.websocket.service.SubmissionResult;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,11 +42,11 @@ import static org.mockito.Mockito.*;
 class CollaborationWebSocketHandlerTest {
 
     @Mock private CollaborationSessionRegistry registry;
+    @Mock private DistributedCollaborationGateway gateway;
     @Mock private SessionParticipantRepository participantRepository;
     @Mock private UserRepository userRepository;
     @Mock private WebSocketSession senderSocket;
     @Mock private WebSocketSession peerSocket;
-    @Mock private CollaborationSessionRuntime runtime;
 
     private CollaborationWebSocketHandler handler;
     private PresenceService presenceService;
@@ -60,7 +61,7 @@ class CollaborationWebSocketHandlerTest {
     @BeforeEach
     void setUp() {
         presenceService = new PresenceService(75);
-        handler = new CollaborationWebSocketHandler(registry, participantRepository,
+        handler = new CollaborationWebSocketHandler(registry, gateway, participantRepository,
                 userRepository, presenceService, objectMapper);
     }
 
@@ -73,18 +74,15 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Connection bootstrap — document_sync")
+    @DisplayName("Connection bootstrap -- document_sync from persisted document")
     class DocumentSync {
 
         @Test
-        @DisplayName("afterConnectionEstablished sends document_sync with document, revision, and participant snapshot")
+        @DisplayName("afterConnectionEstablished sends document_sync with persisted document, revision, and participant snapshot")
         void sendsDocumentSyncOnConnect() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
-            when(senderSocket.isOpen()).thenReturn(true);
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-            when(runtime.snapshot()).thenReturn(new DocumentSnapshot("hello", 3));
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+            when(gateway.connectSnapshot(sessionId)).thenReturn(new DocumentSnapshot("hello", 3));
 
             UserEntity userEntity = new UserEntity(userId, email, "hash");
             when(userRepository.findById(userId)).thenReturn(Optional.of(userEntity));
@@ -109,10 +107,34 @@ class CollaborationWebSocketHandlerTest {
             assertThat(payload.get("participants")).isNotNull();
             assertThat(payload.get("participants").size()).isEqualTo(1);
         }
+
+        @Test
+        @DisplayName("document_sync bootstraps from persisted document state, not empty room")
+        void documentSyncFromPersistedState() throws Exception {
+            Map<String, Object> attrs = socketAttributes(sessionId, userId);
+            when(senderSocket.getAttributes()).thenReturn(attrs);
+            // Gateway returns persisted document state (non-empty, non-zero revision)
+            when(gateway.connectSnapshot(sessionId)).thenReturn(new DocumentSnapshot("persisted document content", 42));
+
+            UserEntity userEntity = new UserEntity(userId, email, "hash");
+            when(userRepository.findById(userId)).thenReturn(Optional.of(userEntity));
+            when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of());
+
+            handler.afterConnectionEstablished(senderSocket);
+
+            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
+            verify(senderSocket, atLeast(1)).sendMessage(captor.capture());
+
+            CollaborationEnvelope envelope = objectMapper.readValue(
+                    captor.getAllValues().get(0).getPayload(), CollaborationEnvelope.class);
+            assertThat(envelope.type()).isEqualTo("document_sync");
+            assertThat(envelope.payload().get("document").asText()).isEqualTo("persisted document content");
+            assertThat(envelope.payload().get("revision").asLong()).isEqualTo(42);
+        }
     }
 
     @Nested
-    @DisplayName("Submit operation — operation_ack and operation_applied")
+    @DisplayName("Submit operation -- operation_ack and operation_applied")
     class SubmitOperation {
 
         @Test
@@ -127,12 +149,10 @@ class CollaborationWebSocketHandlerTest {
             when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
                     .thenReturn(Optional.of(activeParticipant));
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-
             InsertOperation canonicalOp = new InsertOperation(userId, 0, "op-1", 0, "hi");
             DocumentSnapshot snapshot = new DocumentSnapshot("hi", 1);
-            when(runtime.applyClientOperation(any(TextOperation.class)))
-                    .thenReturn(new ApplyResult(1, canonicalOp, snapshot));
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(1, canonicalOp, snapshot));
 
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket, peerSocket));
 
@@ -155,7 +175,6 @@ class CollaborationWebSocketHandlerTest {
             verify(senderSocket, atLeast(1)).sendMessage(senderCaptor.capture());
 
             List<TextMessage> senderMessages = senderCaptor.getAllValues();
-            // First direct message is the ack, then broadcast includes sender too
             CollaborationEnvelope ackEnvelope = objectMapper.readValue(
                     senderMessages.get(0).getPayload(), CollaborationEnvelope.class);
             assertThat(ackEnvelope.type()).isEqualTo("operation_ack");
@@ -177,7 +196,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Error handling — operation_error")
+    @DisplayName("Error handling -- operation_error")
     class OperationError {
 
         @Test
@@ -236,7 +255,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Authorization — non-active participant")
+    @DisplayName("Authorization -- non-active participant")
     class Authorization {
 
         @Test
@@ -268,7 +287,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Desync — resync_required")
+    @DisplayName("Desync -- resync_required")
     class Resync {
 
         @Test
@@ -281,10 +300,9 @@ class CollaborationWebSocketHandlerTest {
             when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
                     .thenReturn(Optional.of(activeParticipant));
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-            when(runtime.applyClientOperation(any(TextOperation.class)))
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
                     .thenThrow(new IllegalArgumentException("base revision 99 is ahead of canonical revision 1"));
-            when(runtime.snapshot()).thenReturn(new DocumentSnapshot("current doc", 1));
+            when(gateway.connectSnapshot(sessionId)).thenReturn(new DocumentSnapshot("current doc", 1));
 
             String json = objectMapper.writeValueAsString(Map.of(
                     "type", "submit_operation",
@@ -312,7 +330,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Connection closed — cleanup")
+    @DisplayName("Connection closed -- cleanup")
     class ConnectionClosed {
 
         @Test
@@ -320,8 +338,6 @@ class CollaborationWebSocketHandlerTest {
         void removesSocketOnClose() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
-            when(peerSocket.isOpen()).thenReturn(true);
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(peerSocket));
 
             // Pre-join so presence has email to look up
             presenceService.join(sessionId, userId, email);
@@ -329,21 +345,12 @@ class CollaborationWebSocketHandlerTest {
             handler.afterConnectionClosed(senderSocket, CloseStatus.NORMAL);
 
             verify(registry).removeSocket(sessionId, senderSocket);
-
-            // Verify participant_left broadcast
-            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-            verify(peerSocket).sendMessage(captor.capture());
-
-            CollaborationEnvelope envelope = objectMapper.readValue(
-                    captor.getValue().getPayload(), CollaborationEnvelope.class);
-            assertThat(envelope.type()).isEqualTo("participant_left");
-            assertThat(envelope.payload().get("userId").asText()).isEqualTo(userId.toString());
-            assertThat(envelope.payload().get("email").asText()).isEqualTo(email);
+            verify(gateway).publishParticipantLeft(sessionId, userId, email);
         }
     }
 
     @Nested
-    @DisplayName("Contract — document_sync bootstrap fields")
+    @DisplayName("Contract -- document_sync bootstrap fields")
     class DocumentSyncBootstrapContract {
 
         @Test
@@ -351,10 +358,7 @@ class CollaborationWebSocketHandlerTest {
         void documentSyncContainsExpectedFields() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
-            when(senderSocket.isOpen()).thenReturn(true);
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-            when(runtime.snapshot()).thenReturn(new DocumentSnapshot("", 0));
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+            when(gateway.connectSnapshot(sessionId)).thenReturn(new DocumentSnapshot("", 0));
 
             UserEntity userEntity = new UserEntity(userId, email, "hash");
             UserEntity peerEntity = new UserEntity(peerId, peerEmail, "hash");
@@ -386,7 +390,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Contract — peer receives operation_applied with canonical revision")
+    @DisplayName("Contract -- peer receives operation_applied with canonical revision")
     class PeerOperationAppliedContract {
 
         @Test
@@ -401,13 +405,11 @@ class CollaborationWebSocketHandlerTest {
             when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
                     .thenReturn(Optional.of(activeParticipant));
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-
             // Simulate server transforming and advancing revision
             InsertOperation canonicalOp = new InsertOperation(userId, 0, "op-peer", 5, "world");
             DocumentSnapshot snapshot = new DocumentSnapshot("helloworld", 7);
-            when(runtime.applyClientOperation(any(TextOperation.class)))
-                    .thenReturn(new ApplyResult(7, canonicalOp, snapshot));
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(7, canonicalOp, snapshot));
 
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket, peerSocket));
 
@@ -440,7 +442,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Contract — unknown message type")
+    @DisplayName("Contract -- unknown message type")
     class UnknownMessageType {
 
         @Test
@@ -471,7 +473,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Contract — DELETE operation flow")
+    @DisplayName("Contract -- DELETE operation flow")
     class DeleteOperationContract {
 
         @Test
@@ -485,13 +487,10 @@ class CollaborationWebSocketHandlerTest {
             when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
                     .thenReturn(Optional.of(activeParticipant));
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-
-            com.collabeditor.ot.model.DeleteOperation canonicalOp =
-                    new com.collabeditor.ot.model.DeleteOperation(userId, 0, "op-del", 2, 3);
+            DeleteOperation canonicalOp = new DeleteOperation(userId, 0, "op-del", 2, 3);
             DocumentSnapshot snapshot = new DocumentSnapshot("he", 1);
-            when(runtime.applyClientOperation(any(TextOperation.class)))
-                    .thenReturn(new ApplyResult(1, canonicalOp, snapshot));
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(1, canonicalOp, snapshot));
 
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
 
@@ -528,7 +527,7 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Contract — missing envelope type field")
+    @DisplayName("Contract -- missing envelope type field")
     class MissingTypeField {
 
         @Test
@@ -557,18 +556,15 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Phase 2 Final — explicit join/leave events")
+    @DisplayName("Phase 2 Final -- explicit join/leave events through relay")
     class ExplicitJoinLeaveEvents {
 
         @Test
-        @DisplayName("participant_joined is an explicit event with userId and email on connect")
-        void participantJoinedExplicitEvent() throws Exception {
+        @DisplayName("participant_joined is published through the gateway on connect")
+        void participantJoinedPublishedThroughGateway() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
-            when(senderSocket.isOpen()).thenReturn(true);
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-            when(runtime.snapshot()).thenReturn(new DocumentSnapshot("", 0));
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
+            when(gateway.connectSnapshot(sessionId)).thenReturn(new DocumentSnapshot("", 0));
             when(participantRepository.findActiveBySessionIdOrdered(sessionId)).thenReturn(List.of());
 
             UserEntity userEntity = new UserEntity(userId, email, "hash");
@@ -576,52 +572,34 @@ class CollaborationWebSocketHandlerTest {
 
             handler.afterConnectionEstablished(senderSocket);
 
+            // Verify gateway.publishParticipantJoined was called
+            verify(gateway).publishParticipantJoined(sessionId, userId, email);
+
+            // Verify document_sync was sent first
             ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-            verify(senderSocket, atLeast(2)).sendMessage(captor.capture());
+            verify(senderSocket, atLeast(1)).sendMessage(captor.capture());
 
-            // Find the participant_joined message (second message after document_sync)
-            List<CollaborationEnvelope> envelopes = captor.getAllValues().stream()
-                    .map(msg -> {
-                        try { return objectMapper.readValue(msg.getPayload(), CollaborationEnvelope.class); }
-                        catch (Exception e) { throw new RuntimeException(e); }
-                    }).toList();
-
-            boolean foundJoined = envelopes.stream()
-                    .anyMatch(e -> "participant_joined".equals(e.type()));
-            assertThat(foundJoined).as("participant_joined must be an explicit event").isTrue();
-
-            CollaborationEnvelope joined = envelopes.stream()
-                    .filter(e -> "participant_joined".equals(e.type()))
-                    .findFirst().orElseThrow();
-            assertThat(joined.payload().get("userId").asText()).isEqualTo(userId.toString());
-            assertThat(joined.payload().get("email").asText()).isEqualTo(email);
+            CollaborationEnvelope envelope = objectMapper.readValue(
+                    captor.getAllValues().get(0).getPayload(), CollaborationEnvelope.class);
+            assertThat(envelope.type()).isEqualTo("document_sync");
         }
 
         @Test
-        @DisplayName("participant_left is an explicit event with userId and email on disconnect")
-        void participantLeftExplicitEvent() throws Exception {
+        @DisplayName("participant_left is published through the gateway on disconnect")
+        void participantLeftPublishedThroughGateway() throws Exception {
             Map<String, Object> attrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(attrs);
-            when(peerSocket.isOpen()).thenReturn(true);
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(peerSocket));
 
             presenceService.join(sessionId, userId, email);
 
             handler.afterConnectionClosed(senderSocket, CloseStatus.NORMAL);
 
-            ArgumentCaptor<TextMessage> captor = ArgumentCaptor.forClass(TextMessage.class);
-            verify(peerSocket).sendMessage(captor.capture());
-
-            CollaborationEnvelope left = objectMapper.readValue(
-                    captor.getValue().getPayload(), CollaborationEnvelope.class);
-            assertThat(left.type()).isEqualTo("participant_left");
-            assertThat(left.payload().get("userId").asText()).isEqualTo(userId.toString());
-            assertThat(left.payload().get("email").asText()).isEqualTo(email);
+            verify(gateway).publishParticipantLeft(sessionId, userId, email);
         }
     }
 
     @Nested
-    @DisplayName("Phase 2 Final — sender receives operation_applied broadcast after operation_ack")
+    @DisplayName("Phase 2 Final -- sender receives operation_applied broadcast after operation_ack")
     class SenderReceivesBothAckAndBroadcast {
 
         @Test
@@ -635,12 +613,10 @@ class CollaborationWebSocketHandlerTest {
             when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
                     .thenReturn(Optional.of(active));
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(runtime);
-
             InsertOperation canonicalOp = new InsertOperation(userId, 0, "op-self", 0, "hello");
             DocumentSnapshot snap = new DocumentSnapshot("hello", 1);
-            when(runtime.applyClientOperation(any(TextOperation.class)))
-                    .thenReturn(new ApplyResult(1, canonicalOp, snap));
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(1, canonicalOp, snap));
 
             // Only the sender is in the room
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
@@ -679,155 +655,21 @@ class CollaborationWebSocketHandlerTest {
     }
 
     @Nested
-    @DisplayName("Phase 2 Final — two sockets converge on same canonical document and revision")
-    class TwoSocketConvergence {
-
-        @Test
-        @DisplayName("two sockets exchange operations and finish on the same canonical document text and revision")
-        void twoSocketsConverge() throws Exception {
-            // Use a real runtime instead of mocks for convergence verification
-            OperationalTransformService otService = new OperationalTransformService();
-            CollaborationSessionRuntime realRuntime = new CollaborationSessionRuntime(sessionId, otService);
-
-            Map<String, Object> senderAttrs = socketAttributes(sessionId, userId);
-            Map<String, Object> peerAttrs = new HashMap<>();
-            peerAttrs.put("sessionId", sessionId);
-            peerAttrs.put("userId", peerId);
-            peerAttrs.put("email", peerEmail);
-
-            when(senderSocket.getAttributes()).thenReturn(senderAttrs);
-            when(peerSocket.getAttributes()).thenReturn(peerAttrs);
-            when(senderSocket.isOpen()).thenReturn(true);
-            when(peerSocket.isOpen()).thenReturn(true);
-
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(realRuntime);
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket, peerSocket));
-
-            SessionParticipantEntity senderParticipant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
-            SessionParticipantEntity peerParticipant = new SessionParticipantEntity(sessionId, peerId, "MEMBER", "ACTIVE");
-            when(participantRepository.findBySessionIdAndUserId(sessionId, userId))
-                    .thenReturn(Optional.of(senderParticipant));
-            when(participantRepository.findBySessionIdAndUserId(sessionId, peerId))
-                    .thenReturn(Optional.of(peerParticipant));
-
-            // User A inserts "hello" at position 0 against revision 0
-            String insertA = objectMapper.writeValueAsString(Map.of(
-                    "type", "submit_operation",
-                    "payload", Map.of(
-                            "clientOperationId", "opA",
-                            "baseRevision", 0,
-                            "operationType", "INSERT",
-                            "position", 0,
-                            "text", "hello"
-                    )));
-            handler.handleTextMessage(senderSocket, new TextMessage(insertA));
-
-            // User B inserts " world" at position 0 against stale revision 0
-            String insertB = objectMapper.writeValueAsString(Map.of(
-                    "type", "submit_operation",
-                    "payload", Map.of(
-                            "clientOperationId", "opB",
-                            "baseRevision", 0,
-                            "operationType", "INSERT",
-                            "position", 0,
-                            "text", " world"
-                    )));
-            handler.handleTextMessage(peerSocket, new TextMessage(insertB));
-
-            // Both operations applied; canonical document must be deterministic
-            DocumentSnapshot finalSnapshot = realRuntime.snapshot();
-            assertThat(finalSnapshot.revision()).isEqualTo(2);
-            // userId (222...) > peerId (333...) is false; peerId > userId
-            // userA = 222...222, userB = 333...333 => userA < userB => userA wins left
-            // So "hello" stays at 0, " world" shifts right to 5
-            assertThat(finalSnapshot.document()).isEqualTo("hello world");
-        }
-    }
-
-    @Nested
-    @DisplayName("Phase 2 Final — three socket convergence scenario")
-    class ThreeSocketConvergence {
-
-        @Mock private WebSocketSession thirdSocket;
-
-        @Test
-        @DisplayName("three sockets exchange operations and all finish on the same canonical document")
-        void threeSocketsConverge() throws Exception {
-            UUID thirdUserId = UUID.fromString("44444444-4444-4444-4444-444444444444");
-
-            OperationalTransformService otService = new OperationalTransformService();
-            CollaborationSessionRuntime realRuntime = new CollaborationSessionRuntime(sessionId, otService);
-
-            Map<String, Object> attrs1 = socketAttributes(sessionId, userId);
-            Map<String, Object> attrs2 = new HashMap<>();
-            attrs2.put("sessionId", sessionId);
-            attrs2.put("userId", peerId);
-            attrs2.put("email", peerEmail);
-            Map<String, Object> attrs3 = new HashMap<>();
-            attrs3.put("sessionId", sessionId);
-            attrs3.put("userId", thirdUserId);
-            attrs3.put("email", "third@example.com");
-
-            when(senderSocket.getAttributes()).thenReturn(attrs1);
-            when(peerSocket.getAttributes()).thenReturn(attrs2);
-            when(thirdSocket.getAttributes()).thenReturn(attrs3);
-            when(senderSocket.isOpen()).thenReturn(true);
-            when(peerSocket.isOpen()).thenReturn(true);
-            when(thirdSocket.isOpen()).thenReturn(true);
-
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(realRuntime);
-            when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket, peerSocket, thirdSocket));
-
-            SessionParticipantEntity p1 = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
-            SessionParticipantEntity p2 = new SessionParticipantEntity(sessionId, peerId, "MEMBER", "ACTIVE");
-            SessionParticipantEntity p3 = new SessionParticipantEntity(sessionId, thirdUserId, "MEMBER", "ACTIVE");
-            when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(p1));
-            when(participantRepository.findBySessionIdAndUserId(sessionId, peerId)).thenReturn(Optional.of(p2));
-            when(participantRepository.findBySessionIdAndUserId(sessionId, thirdUserId)).thenReturn(Optional.of(p3));
-
-            // All three send operations against revision 0
-            handler.handleTextMessage(senderSocket, new TextMessage(objectMapper.writeValueAsString(Map.of(
-                    "type", "submit_operation",
-                    "payload", Map.of(
-                            "clientOperationId", "op1", "baseRevision", 0,
-                            "operationType", "INSERT", "position", 0, "text", "A")))));
-
-            handler.handleTextMessage(peerSocket, new TextMessage(objectMapper.writeValueAsString(Map.of(
-                    "type", "submit_operation",
-                    "payload", Map.of(
-                            "clientOperationId", "op2", "baseRevision", 0,
-                            "operationType", "INSERT", "position", 0, "text", "B")))));
-
-            handler.handleTextMessage(thirdSocket, new TextMessage(objectMapper.writeValueAsString(Map.of(
-                    "type", "submit_operation",
-                    "payload", Map.of(
-                            "clientOperationId", "op3", "baseRevision", 0,
-                            "operationType", "INSERT", "position", 0, "text", "C")))));
-
-            DocumentSnapshot finalSnapshot = realRuntime.snapshot();
-            assertThat(finalSnapshot.revision()).isEqualTo(3);
-            // Deterministic: all at same position, tie-break by userId
-            // userId(222...) < peerId(333...) < thirdUserId(444...)
-            // So order is A, B, C
-            assertThat(finalSnapshot.document()).isEqualTo("ABC");
-        }
-    }
-
-    @Nested
-    @DisplayName("Phase 2 Final — selection ranges survive operations")
+    @DisplayName("Phase 2 Final -- selection ranges survive operations")
     class SelectionRangesSurviveOps {
 
         @Test
         @DisplayName("selection ranges are transformed when operations are applied through the handler")
         void selectionRangesTransformedByOps() throws Exception {
-            OperationalTransformService otService = new OperationalTransformService();
-            CollaborationSessionRuntime realRuntime = new CollaborationSessionRuntime(sessionId, otService);
-
             Map<String, Object> senderAttrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(senderAttrs);
             when(senderSocket.isOpen()).thenReturn(true);
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(realRuntime);
+            InsertOperation canonicalOp = new InsertOperation(userId, 0, "opIns", 0, "abc");
+            DocumentSnapshot snap = new DocumentSnapshot("abc", 1);
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(1, canonicalOp, snap));
+
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
 
             SessionParticipantEntity active = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
@@ -838,7 +680,7 @@ class CollaborationWebSocketHandlerTest {
             presenceService.join(sessionId, peerId, peerEmail);
             presenceService.updateSelection(sessionId, peerId, new SelectionRange(5, 10));
 
-            // User A inserts 3 chars at position 2 (before peer's range)
+            // User A inserts 3 chars at position 0 (before peer's range)
             String insertJson = objectMapper.writeValueAsString(Map.of(
                     "type", "submit_operation",
                     "payload", Map.of(
@@ -857,17 +699,15 @@ class CollaborationWebSocketHandlerTest {
         @Test
         @DisplayName("selection ranges survive delete operations and clamp correctly")
         void selectionRangesSurviveDeletes() throws Exception {
-            OperationalTransformService otService = new OperationalTransformService();
-            CollaborationSessionRuntime realRuntime = new CollaborationSessionRuntime(sessionId, otService);
-
-            // Pre-populate document with "hello world"
-            realRuntime.applyClientOperation(new InsertOperation(userId, 0, "setup", 0, "hello world"));
-
             Map<String, Object> senderAttrs = socketAttributes(sessionId, userId);
             when(senderSocket.getAttributes()).thenReturn(senderAttrs);
             when(senderSocket.isOpen()).thenReturn(true);
 
-            when(registry.getOrCreateRuntime(sessionId)).thenReturn(realRuntime);
+            DeleteOperation canonicalOp = new DeleteOperation(userId, 1, "opDel", 0, 6);
+            DocumentSnapshot snap = new DocumentSnapshot("world", 2);
+            when(gateway.submitOperation(eq(sessionId), eq(userId), any()))
+                    .thenReturn(new SubmissionResult(2, canonicalOp, snap));
+
             when(registry.getSockets(sessionId)).thenReturn(Set.of(senderSocket));
 
             SessionParticipantEntity active = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
@@ -887,12 +727,7 @@ class CollaborationWebSocketHandlerTest {
 
             handler.handleTextMessage(senderSocket, new TextMessage(deleteJson));
 
-            // Document should now be "world"
-            assertThat(realRuntime.snapshot().document()).isEqualTo("world");
-
             // Peer's range should be clamped and shifted: was [6,11], delete [0,6)
-            // start: was 6, >= delEnd(6), so 6-6=0
-            // end: was 11, >= delEnd(6), so 11-6=5
             SelectionRange peerRange = presenceService.getSelection(sessionId, peerId);
             assertThat(peerRange).isNotNull();
             assertThat(peerRange.start()).isEqualTo(0);

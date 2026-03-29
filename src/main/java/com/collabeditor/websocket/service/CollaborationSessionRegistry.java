@@ -1,40 +1,52 @@
 package com.collabeditor.websocket.service;
 
 import com.collabeditor.ot.service.CollaborationSessionRuntime;
-import com.collabeditor.ot.service.OperationalTransformService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
- * In-memory registry of active WebSocket sessions and their associated
- * {@link CollaborationSessionRuntime} instances.
+ * Instance-local registry of WebSocket sockets and cached collaboration runtimes.
  *
  * <p>Thread-safe: uses ConcurrentHashMap for runtime lookup and
  * CopyOnWriteArraySet for per-session socket tracking.
+ *
+ * <p>Phase 3 refactor: the registry no longer unconditionally creates runtimes.
+ * Runtimes are lazily rebuilt by {@link DistributedCollaborationGateway} from
+ * durable state and cached here for subsequent lookups on this instance.
  */
 @Component
 public class CollaborationSessionRegistry {
 
-    private final OperationalTransformService otService;
     private final Map<UUID, CollaborationSessionRuntime> runtimes = new ConcurrentHashMap<>();
     private final Map<UUID, Set<WebSocketSession>> sessionSockets = new ConcurrentHashMap<>();
 
-    public CollaborationSessionRegistry(OperationalTransformService otService) {
-        this.otService = otService;
+    /**
+     * Returns the cached runtime for a session if present on this instance.
+     */
+    public Optional<CollaborationSessionRuntime> getRuntimeIfPresent(UUID sessionId) {
+        return Optional.ofNullable(runtimes.get(sessionId));
     }
 
     /**
-     * Get or create the canonical runtime for a session.
+     * Caches a runtime on this instance after lazy rebuild from durable state.
      */
-    public CollaborationSessionRuntime getOrCreateRuntime(UUID sessionId) {
-        return runtimes.computeIfAbsent(sessionId,
-                id -> new CollaborationSessionRuntime(id, otService));
+    public void cacheRuntime(UUID sessionId, CollaborationSessionRuntime runtime) {
+        runtimes.put(sessionId, runtime);
+    }
+
+    /**
+     * Evicts the cached runtime for a session from this instance.
+     * Used when a revision gap or inconsistency is detected, forcing a rebuild.
+     */
+    public void evictRuntime(UUID sessionId) {
+        runtimes.remove(sessionId);
     }
 
     /**
