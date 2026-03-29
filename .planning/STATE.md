@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 02-03-PLAN.md (Phase 2 complete)
-last_updated: "2026-03-27T21:26:08.433Z"
-last_activity: "2026-03-27 -- Completed Plan 02-03: Presence and Phase 2 verification"
+status: planning
+stopped_at: Phase 3 context gathered
+last_updated: "2026-03-29T06:23:03Z"
+last_activity: "2026-03-29 -- Captured Phase 3 context for durable persistence and multi-instance coordination"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 2 complete, ready for Phase 3
+**Current focus:** Phase 3 context gathered, ready for planning
 
 ## Current Position
 
-Phase: 2 (real-time-ot-collaboration) -- COMPLETE
-Plan: 3 of 3
-Status: Phase 2 complete -- OT engine, WebSocket protocol, and presence all verified
-Last activity: 2026-03-27 -- Completed Plan 02-03: Presence and Phase 2 verification
+Phase: 3 (durable-persistence-and-multi-instance-coordination) -- CONTEXT GATHERED
+Plan: 0 of TBD
+Status: Ready for Phase 3 planning -- durability, snapshot, Redis, and relay decisions locked
+Last activity: 2026-03-29 -- Captured Phase 3 context for durable persistence and multi-instance coordination
 
 Progress: [█████░░░░░] 50%
 
@@ -99,6 +99,11 @@ Recent decisions affecting current work:
 - [Phase 02]: Selection range transformation applies same insert/delete logic as OT but to cursor positions — Keeps ranges aligned with canonical document after edits.
 - [Phase 02]: Cursor throttle window is configurable via app.collaboration.cursor-throttle-ms (default 75ms) — Prevents cursor broadcast flooding without losing latest state.
 - [Phase 02]: Email resolution uses existing UserRepository.findById rather than duplicating user data — Single source of truth for participant identity.
+- [Phase 03]: Accepted canonical operations must be durably persisted before ack or broadcast — An acknowledged edit must survive a service restart.
+- [Phase 03]: PostgreSQL remains the durable source of truth while Redis handles active-session coordination and relay — Avoids split durable state across systems.
+- [Phase 03]: Snapshots are created at least every 50 canonical operations and recovery always uses latest snapshot plus replay — Snapshots speed recovery without replacing full history.
+- [Phase 03]: Session runtimes rebuild lazily after restart or local eviction — Recovery cost is paid only for active rooms instead of at application boot.
+- [Phase 03]: Cross-instance collaboration fan-out comes from a single canonical Redis relay path and revision gaps force rebuild or resync — Multi-instance delivery must fail safe rather than drift.
 
 ### Pending Todos
 
@@ -111,10 +116,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None currently. Phase 2 is complete and Phase 3 may begin.
+None currently. Phase 3 context is captured and planning may begin.
 
 ## Session Continuity
 
-Last session: 2026-03-27T21:20:13Z
-Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
-Resume file: .planning/phases/02-real-time-ot-collaboration/02-03-SUMMARY.md
+Last session: 2026-03-29T06:23:03Z
+Stopped at: Phase 3 context gathered
+Resume file: .planning/phases/03-durable-persistence-and-multi-instance-coordination/03-CONTEXT.md
