@@ -12,8 +12,8 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 
 - [x] **Phase 1: Secure Access and Session Lifecycle** - Users can authenticate and manage collaboration sessions through protected APIs.
 - [x] **Phase 01.1: Fix Phase 1 auth, session, and verification gaps (INSERTED)** - Remediate security, concurrency, and verification issues discovered during Phase 1 review before Phase 2 begins. (completed 2026-03-27)
-- [ ] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence.
-- [ ] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances.
+- [x] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence. (completed 2026-03-27)
+- [x] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances. (completed 2026-03-29)
 - [ ] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments.
 - [ ] **Phase 5: Integration Hardening and Developer Docs** - The full stack is verifiable via integration tests and reproducible local setup docs.
 
@@ -63,7 +63,12 @@ Plans:
   3. Participants can see other users' cursor positions update in real time.
   4. Participants receive join and leave presence events for other users in real time.
   5. JUnit 5 OT test suite passes for transform edge cases and three-user convergence scenarios.
-**Plans**: TBD
+**Plans**: 3/3 plans complete
+
+Plans:
+- [x] 02-01-PLAN.md - Build the server-authoritative OT core and convergence test suite
+- [x] 02-02-PLAN.md - Add the authenticated WebSocket collaboration contract and canonical operation flow
+- [x] 02-03-PLAN.md - Implement presence tracking, cursor transformation, and participant events
 
 ### Phase 3: Durable Persistence and Multi-Instance Coordination
 **Goal**: Collaboration state is durable and remains consistent when traffic is distributed across multiple backend instances.
@@ -74,7 +79,13 @@ Plans:
   2. The system creates document snapshots at least every 50 operations and can recover document state from snapshot plus replay.
   3. Active session state and revision counters are coordinated through Redis for low-latency updates and atomic revision changes.
   4. Collaboration events relay across 2-3 backend instances via Redis pub/sub without document divergence.
-**Plans**: TBD
+**Plans**: 4/4 plans complete
+
+Plans:
+- [x] 03-01-PLAN.md - Establish the durable PostgreSQL schema and repository foundation for Phase 3
+- [x] 03-02-PLAN.md - Implement the durable append, snapshot cadence, and lazy rebuild services for Phase 3
+- [x] 03-03-PLAN.md - Introduce Redis coordination and canonical collaboration relay services for Phase 3
+- [x] 03-04-PLAN.md - Rewire the WebSocket collaboration flow to use durable recovery and Redis-backed canonical relay behavior
 
 ### Phase 4: Sandboxed Code Execution
 **Goal**: Participants can execute the shared document safely and predictably in isolated containers.
@@ -103,7 +114,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Secure Access and Session Lifecycle | 3/3 | Complete | 2026-03-27 |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4/4 | Complete    | 2026-03-27 |
-| 2. Real-Time OT Collaboration | 1/3 | In Progress|  |
-| 3. Durable Persistence and Multi-Instance Coordination | 3/4 | In Progress|  |
+| 2. Real-Time OT Collaboration | 3/3 | Complete | 2026-03-27 |
+| 3. Durable Persistence and Multi-Instance Coordination | 4/4 | Complete | 2026-03-29 |
 | 4. Sandboxed Code Execution | 0/TBD | Not started | - |
 | 5. Integration Hardening and Developer Docs | 0/TBD | Not started | - |

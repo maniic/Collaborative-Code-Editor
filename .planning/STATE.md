@@ -2,43 +2,43 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-29T06:56:14.440Z"
-last_activity: 2026-03-29 -- Completed 03-01 database schema and repository foundation
+status: ready
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-03-29T08:46:44Z"
+last_activity: 2026-03-29 -- Completed Phase 3 durable persistence and multi-instance coordination
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
-  percent: 64
+  completed_plans: 14
+  percent: 67
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-26)
+See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** The OT engine guarantees convergence so all participants end with the same document after concurrent edits.
-**Current focus:** Phase 3 context gathered, ready for planning
+**Current focus:** Phase 4 planning and execution preparation
 
 ## Current Position
 
-Phase: 3 (durable-persistence-and-multi-instance-coordination) -- IN PROGRESS
-Plan: 3 of 4
-Status: Executing Phase 3 plans -- Plan 03 complete (Redis coordination and canonical relay)
-Last activity: 2026-03-29 -- Completed 03-03 Redis coordination and canonical collaboration relay
+Phase: 4
+Plan: Not started
+Status: Phase 3 complete -- ready to plan Phase 4
+Last activity: 2026-03-29 -- Completed Phase 3 durable persistence and multi-instance coordination
 
-Progress: [██████▓░░░] 64%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 13
-- Average duration: 10 min
-- Total execution time: 2.07 hours
+- Total plans completed: 14
+- Average duration: 11 min
+- Total execution time: 2.54 hours
 
 **By Phase:**
 
@@ -47,17 +47,19 @@ Progress: [██████▓░░░] 64%
 | 1. Secure Access and Session Lifecycle | 3 | 35 min | 12 min |
 | 01.1. Fix Phase 1 auth, session, and verification gaps | 4 | 40 min | 10 min |
 | 2. Real-Time OT Collaboration | 3 | 30 min | 10 min |
-| 3. Durable Persistence and Multi-Instance Coordination | 3 | 19 min | 6 min |
+| 3. Durable Persistence and Multi-Instance Coordination | 4 | 47 min | 12 min |
 | 4. Sandboxed Code Execution | 0 | 0 min | 0 min |
 | 5. Integration Hardening and Developer Docs | 0 | 0 min | 0 min |
 
 **Recent Trend:**
 
-- Last 5 plans: 02-01 (11 min), 02-02 (9 min), 02-03 (10 min), 03-01 (6 min), 03-02 (7 min)
-- Trend: Stable
+- Last 5 plans: 02-03 (10 min), 03-01 (6 min), 03-02 (7 min), 03-03 (6 min), 03-04 (28 min)
+- Trend: Mixed
+
 | Phase 03 P01 | 6min | 3 tasks | 9 files |
 | Phase 03 P02 | 7min | 3 tasks | 7 files |
 | Phase 03 P03 | 6min | 3 tasks | 11 files |
+| Phase 03 P04 | 28min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -111,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 03]: SET NX PX with random token for per-session distributed locking in Redis
 - [Phase 03]: Deterministic Redis key patterns collab:session:{sessionId}:{lock|revision|active|events}
 - [Phase 03]: Jackson-serialized typed relay payloads for canonical collaboration events via Redis pub/sub
+- [Phase 03]: Local sockets consume accepted operations and presence updates only through the canonical Redis relay path, including on the origin instance. — Keeps single-path fan-out semantics across all backend nodes.
+- [Phase 03]: Relay revision gaps evict the cached runtime, rebuild durable state, and emit resync_required rather than continuing on stale memory. — Prevents silent divergence after missed pub/sub events.
+- [Phase 03]: Presence join preserves existing selection and throttle timestamps for already-tracked users. — Self-relayed participant events must not reset local cursor behavior.
 
 ### Pending Todos
 
@@ -123,10 +128,10 @@ None yet.
 
 ### Blockers/Concerns
 
-None currently. Phase 3 context is captured and planning may begin.
+None currently. Phase 4 planning can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-29T08:15:00Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-29T08:46:44Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

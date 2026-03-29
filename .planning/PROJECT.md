@@ -10,7 +10,7 @@ The OT engine must guarantee document convergence — when multiple users edit s
 
 ## Current State
 
-Phase 01.1 is complete. The auth and session baseline now fails closed on insecure JWT configuration, keeps refresh/session mutations deterministic under concurrency, and has a green Docker-backed verification path. Phase 2 is unblocked.
+Phase 3 is complete. Collaboration state now persists accepted operations and snapshots in PostgreSQL, rebuilds runtimes lazily from durable state, and relays canonical collaboration events across Redis-backed backend instances without bypassing the shared fan-out path. Phase 4 is unblocked.
 
 ## Requirements
 
@@ -18,30 +18,21 @@ Phase 01.1 is complete. The auth and session baseline now fails closed on insecu
 
 <!-- Shipped and confirmed valuable. -->
 
-(None yet — ship to validate)
+- [x] JWT authentication and refresh rotation with fail-closed configuration validation
+- [x] Session lifecycle APIs with deterministic join/leave/owner-transfer behavior
+- [x] Server-authoritative OT collaboration with cursor presence and join/leave events
+- [x] PostgreSQL durability for operation log, snapshots, and execution-history foundation
+- [x] Snapshot-plus-replay recovery for collaboration runtime rebuilds
+- [x] Redis coordination and canonical pub/sub relay for 2-3 backend instances
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] JWT authentication (register, login, token refresh)
-- [ ] REST API for session CRUD (create, join, leave, list)
-- [ ] WebSocket connection for real-time operation broadcasting
-- [ ] OT engine implemented from scratch — insert/insert, insert/delete, delete/delete transforms
-- [ ] Multi-character operations (position + string, supports paste and bulk delete)
-- [ ] Server-authoritative model with revision counter and operation history transform
-- [ ] Cursor presence broadcasting (show where each user is typing)
-- [ ] User join/leave events over WebSocket
-- [ ] PostgreSQL persistence for users, sessions, operation log, snapshots, execution history
-- [ ] Document snapshots every 50 operations for fast recovery
-- [ ] Redis pub/sub for cross-instance WebSocket relay (2-3 instance horizontal scaling)
-- [ ] Redis caching for active session state and atomic revision counter
 - [ ] Sandboxed code execution via Docker containers (docker-java library)
 - [ ] Execution resource limits: 256MB memory, 0.5 CPU, no network, read-only FS, non-root, 10s timeout
 - [ ] Python and Java language support for execution
 - [ ] Bounded thread pool execution queue with rate limiting (1 execution/user/5 seconds)
-- [ ] Flyway database migrations
-- [ ] Comprehensive JUnit 5 tests — OT transform edge cases + 3-user convergence test
 - [ ] Integration tests with Testcontainers
 - [ ] docker-compose.yml for full stack (app, PostgreSQL, Redis)
 - [ ] README with architecture diagram, setup instructions, API docs, and design decisions
@@ -88,4 +79,4 @@ Session model: each session is a room identified by UUID, with a programming lan
 | Multi-character operations | Operations carry position + string (not single-char) — reduces message volume, handles paste/bulk-delete naturally, more realistic for a real editor | — Pending |
 
 ---
-*Last updated: 2026-03-27 after Phase 01.1 completion*
+*Last updated: 2026-03-29 after Phase 3 completion*
