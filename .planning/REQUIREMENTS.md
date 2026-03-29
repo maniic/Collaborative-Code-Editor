@@ -31,8 +31,8 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 
 ### Persistence & Scaling
 
-- [ ] **DATA-01**: User, session, operation log, snapshot, and execution history data are persisted in PostgreSQL
-- [ ] **DATA-02**: The system creates document snapshots at least every 50 operations and can recover document state from snapshot plus replay
+- [x] **DATA-01**: User, session, operation log, snapshot, and execution history data are persisted in PostgreSQL
+- [x] **DATA-02**: The system creates document snapshots at least every 50 operations and can recover document state from snapshot plus replay
 - [ ] **DATA-03**: Active session state and revision counters are stored in Redis for low-latency coordination
 - [ ] **DATA-04**: Collaboration events are relayed across 2-3 backend instances through Redis pub/sub without document divergence
 
@@ -96,8 +96,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-04 | Phase 2 | Complete |
 | COLL-05 | Phase 2 | Complete |
 | COLL-06 | Phase 2 | Complete |
-| DATA-01 | Phase 3 | Pending |
-| DATA-02 | Phase 3 | Pending |
+| DATA-01 | Phase 3 | Complete |
+| DATA-02 | Phase 3 | Complete |
 | DATA-03 | Phase 3 | Pending |
 | DATA-04 | Phase 3 | Pending |
 | EXEC-01 | Phase 4 | Pending |
