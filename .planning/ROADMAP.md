@@ -129,4 +129,4 @@ Plans:
 | 2. Real-Time OT Collaboration | 3/3 | Complete | 2026-03-27 |
 | 3. Durable Persistence and Multi-Instance Coordination | 4/4 | Complete | 2026-03-29 |
 | 4. Sandboxed Code Execution | 4/4 | Complete | 2026-03-29 |
-| 5. Integration Hardening and Developer Docs | 2/4 | In Progress|  |
+| 5. Integration Hardening and Developer Docs | 3/4 | In Progress|  |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-30T02:23:03.472Z"
+stopped_at: Completed 05-03-PLAN.md
+last_updated: "2026-03-30T02:27:02.346Z"
 last_activity: 2026-03-29 -- Completed 05-01 integrationTest task and suite tagging
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 22
-  completed_plans: 20
+  completed_plans: 21
   percent: 86
 ---
 
@@ -62,6 +62,7 @@ Progress: [█████████░] 86%
 | Phase 04 P04 | 30min | 3 tasks | 4 files |
 | Phase 05 P01 | 25 | 3 tasks | 7 files |
 | Phase 05 P02 | 27 | 2 tasks | 5 files |
+| Phase 05 P03 | 12 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,8 @@ Recent decisions affecting current work:
 - [Phase 05-02]: spring-boot-starter-actuator added with management.endpoints.web.exposure.include: health — only the health endpoint is exposed, keeping Actuator surface minimal
 - [Phase 05-02]: HealthEndpointTest uses Testcontainers PostgreSQL so the full Spring context boots (Flyway, JPA validate, security filter chain) — proves unauthenticated 200 against real infrastructure
 - [Phase 05-02]: DOCKER_HOST=unix:///var/run/docker.sock set as ENV in Dockerfile — DefaultDockerClientConfig auto-discovers the mounted socket so Phase 4 execution works inside the app container
+- [Phase 05-03]: DOCKER_SOCKET_PATH uses Compose default syntax so Colima users can override without editing the Compose file
+- [Phase 05-03]: app healthcheck uses 60s start_period to allow Flyway migrations to complete before health probe fires
 
 ### Pending Todos
 
@@ -150,6 +153,6 @@ None currently. Phase 5 execution can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-30T02:23:03.469Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-30T02:27:02.344Z
+Stopped at: Completed 05-03-PLAN.md
 Resume file: None
