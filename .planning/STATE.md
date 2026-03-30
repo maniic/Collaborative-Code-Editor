@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Phase 4 complete
-last_updated: "2026-03-29T21:27:03.512Z"
-last_activity: 2026-03-29 -- Completed Phase 4 sandboxed code execution
+stopped_at: Phase 5 context gathered
+last_updated: "2026-03-30T01:55:48Z"
+last_activity: 2026-03-29 -- Captured Phase 5 context and discussion log
 progress:
   total_phases: 6
   completed_phases: 5
@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 5
 Plan: Not started
-Status: Phase 4 complete -- ready to plan Phase 5
-Last activity: 2026-03-29 -- Completed Phase 4 sandboxed code execution
+Status: Phase 5 context gathered -- ready to plan Phase 5
+Last activity: 2026-03-29 -- Captured Phase 5 context and discussion log
 
 Progress: [████████░░] 83%
 
@@ -121,6 +121,9 @@ Recent decisions affecting current work:
 - [Phase 04]: Sandbox inputs are bind-mounted from a home-directory workspace and writable runtime paths are tmpfs mounts owned by uid/gid 65534. — Keeps the filesystem restrictive while still allowing non-root Java compilation on the local Docker/Colima setup.
 - [Phase 04]: Execution lifecycle updates relay through Redis and broadcast on the existing room websocket as execution_updated. — Async execution progress must remain room-visible across backend instances.
 - [Phase 04]: Redis listener callbacks run synchronously for execution events. — Preserves QUEUED → RUNNING → terminal ordering on each node.
+- [Phase 05]: The canonical verification path should be one obvious Gradle-invokable run composed of focused Testcontainers-backed integration suites, not one monolithic mega-test. — Keeps Phase 5 proof maintainable while still satisfying the "one automated run" requirement.
+- [Phase 05]: `docker-compose` should be the canonical local reproduction path for `app`, PostgreSQL, and Redis, with infra-only-plus-Gradle documented only as a secondary inner-loop option. — Meets the roadmap's reproducible local setup goal directly.
+- [Phase 05]: README should prioritize first-run success, representative REST/WebSocket contract examples, and one high-signal architecture diagram instead of exhaustive generated reference docs. — Keeps onboarding practical and portfolio-quality.
 
 ### Pending Todos
 
@@ -137,6 +140,6 @@ None currently. Phase 5 planning can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-29T21:24:16Z
-Stopped at: Phase 4 complete
-Resume file: .planning/phases/04-sandboxed-code-execution/04-VERIFICATION.md
+Last session: 2026-03-30T01:55:48Z
+Stopped at: Phase 5 context gathered
+Resume file: .planning/phases/05-integration-hardening-and-developer-docs/05-CONTEXT.md
