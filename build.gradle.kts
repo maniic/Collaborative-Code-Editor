@@ -53,6 +53,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers:1.21.4")
 }
 
+// Shared Docker and Testcontainers environment wiring applied to all Test tasks
 tasks.withType<Test> {
     useJUnitPlatform()
     val activeSpringProfile = System.getProperty("spring.profiles.active")
@@ -73,4 +74,15 @@ tasks.withType<Test> {
     jvmArgs("-DDOCKER_API_VERSION=1.44")
     // Disable Ryuk for Colima/non-standard Docker socket environments
     environment("TESTCONTAINERS_RYUK_DISABLED", System.getenv("TESTCONTAINERS_RYUK_DISABLED") ?: "true")
+}
+
+// Dedicated integration verification task: runs the canonical Phase 5 integration proof suites.
+// Executes all test classes tagged @Tag("integration") — covers persistence bootstrap,
+// Redis coordination, and Docker-backed execution without disturbing the full default test suite.
+tasks.register<Test>("integrationTest") {
+    group = "verification"
+    description = "Runs the canonical Phase 5 integration proof suites (persistence, Redis coordination, execution)."
+    useJUnitPlatform {
+        includeTags("integration")
+    }
 }
