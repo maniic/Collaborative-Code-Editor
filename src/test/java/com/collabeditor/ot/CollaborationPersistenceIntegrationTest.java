@@ -11,6 +11,7 @@ import com.collabeditor.snapshot.persistence.entity.DocumentStateSnapshotEntity;
 import com.collabeditor.snapshot.service.SnapshotRecoveryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * PostgreSQL-backed integration tests proving snapshot cadence at exact
  * canonical revisions and lazy runtime rebuild from snapshot-plus-replay.
  */
+@Tag("integration")
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("test")

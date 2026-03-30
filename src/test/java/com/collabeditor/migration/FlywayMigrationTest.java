@@ -1,5 +1,6 @@
 package com.collabeditor.migration;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Verifies that V1__phase1_baseline.sql applies cleanly against a real
  * PostgreSQL instance and produces the expected schema artifacts.
  */
+@Tag("integration")
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("test")
