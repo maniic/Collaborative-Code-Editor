@@ -459,3 +459,33 @@ Session language is set at creation time and cannot be changed. Execution captur
 ### Docker socket requirement
 
 The local Compose stack mounts the Docker daemon socket into the `app` container at `/var/run/docker.sock`. The `DOCKER_HOST` environment variable is set to `unix:///var/run/docker.sock` so `docker-java` auto-discovers it. For Docker Desktop, Linux, and Colima Compose runs, the default `DOCKER_SOCKET_PATH=/var/run/docker.sock` is correct. Override it only if the Docker daemon itself exposes its socket at a different path.
+
+---
+
+## Extending This Project With Agentic Tools
+
+This repository was developed with `Codex`, `Claude`, and the `GSD` workflow. Those files are not part of the application runtime. They act as the project's continuation kit so future contributors can extend the system without re-discovering the architecture, constraints, and delivery history from scratch.
+
+### Purpose of the meta files
+
+- `AGENTS.md`: repo-level contract for agentic contributors, including workflow entry points, guardrails, and the authoritative planning files.
+- `CLAUDE.md`: compact generated project summary for tools that look for a fast context file before they inspect the full repo.
+- `.planning/`: project memory for goals, requirements, roadmap, state tracking, phase plans, validation notes, UAT records, and shipped summaries.
+- `.claude/`: local workspace settings for Claude-compatible tooling.
+
+### Recommended workflow for future expansion
+
+- Small docs or maintenance updates: `$gsd-quick "task description"`
+- Debugging and bug-fix work: `$gsd-debug "what is failing"`
+- New planned feature work: `$gsd-discuss-phase <n>`, `$gsd-plan-phase <n>`, `$gsd-execute-phase <n>`
+- Verification and closeout: `$gsd-verify-work <n>` and `$gsd-complete-milestone`
+- New large initiative, such as a frontend milestone: `$gsd-new-milestone`
+
+### Good next expansion targets
+
+- A browser frontend that consumes the existing REST and WebSocket contracts
+- Additional execution languages with fixed sandbox contracts
+- CI/CD, deployment automation, and observability
+- Admin or moderation workflows for collaborative sessions
+
+If you want to keep using agentic tools, leave these meta files in place or update your tooling to point at new locations. They are the repo's project memory and workflow contract, not just extra docs.
