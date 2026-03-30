@@ -22,6 +22,7 @@ import com.collabeditor.session.persistence.entity.SessionParticipantEntity;
 import com.collabeditor.snapshot.service.SnapshotRecoveryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +64,7 @@ import static org.mockito.Mockito.when;
  *
  * <p>Source capture tests use Mockito (unit). Persistence tests use Testcontainers (integration).
  */
+@Tag("integration")
 @SpringBootTest
 @Testcontainers
 @ActiveProfiles("test")
