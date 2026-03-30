@@ -2,7 +2,7 @@
 
 A real-time collaborative code editor backend. Multiple users join coding sessions via WebSocket, edit the same document simultaneously with conflict-free resolution using Operational Transform, and execute code together in Docker-sandboxed containers.
 
-Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker. Designed as a portfolio piece demonstrating distributed systems, real-time algorithms, and containerized execution.
+Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker.
 
 ---
 
