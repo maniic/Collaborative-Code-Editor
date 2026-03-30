@@ -49,7 +49,7 @@ Requirements for the initial backend-only milestone. Each maps to roadmap phases
 - [x] **QUAL-02**: The OT engine has comprehensive JUnit 5 tests covering transform edge cases and three-user convergence
 - [x] **QUAL-03**: Integration tests use Testcontainers to validate persistence, Redis coordination, and execution flows
 - [x] **DOCS-01**: Developer can start the backend, PostgreSQL, and Redis locally with docker-compose using documented steps
-- [ ] **DOCS-02**: Developer can reference a README with setup instructions, API documentation, architecture notes, and design decisions
+- [x] **DOCS-02**: Developer can reference a README with setup instructions, API documentation, architecture notes, and design decisions
 
 ## v2 Requirements
 
@@ -108,7 +108,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | QUAL-02 | Phase 2 | Complete |
 | QUAL-03 | Phase 5 | Complete |
 | DOCS-01 | Phase 5 | Complete |
-| DOCS-02 | Phase 5 | Pending |
+| DOCS-02 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 26 total

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-03-30T02:27:02.346Z"
+stopped_at: Completed 05-04-PLAN.md
+last_updated: "2026-03-30T02:33:37.533Z"
 last_activity: 2026-03-29 -- Completed 05-01 integrationTest task and suite tagging
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
   percent: 86
 ---
 
@@ -63,6 +63,7 @@ Progress: [█████████░] 86%
 | Phase 05 P01 | 25 | 3 tasks | 7 files |
 | Phase 05 P02 | 27 | 2 tasks | 5 files |
 | Phase 05 P03 | 12 | 2 tasks | 2 files |
+| Phase 05 P04 | 4 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -136,6 +137,8 @@ Recent decisions affecting current work:
 - [Phase 05-02]: DOCKER_HOST=unix:///var/run/docker.sock set as ENV in Dockerfile — DefaultDockerClientConfig auto-discovers the mounted socket so Phase 4 execution works inside the app container
 - [Phase 05-03]: DOCKER_SOCKET_PATH uses Compose default syntax so Colima users can override without editing the Compose file
 - [Phase 05-03]: app healthcheck uses 60s start_period to allow Flyway migrations to complete before health probe fires
+- [Phase 05-04]: README optimizes for first-run success using docker compose --env-file .env.example up --build as canonical start command and ./gradlew integrationTest as canonical verification command
+- [Phase 05-04]: Architecture diagram uses Mermaid flowchart in README showing all seven backend subsystems (auth, session, websocket, ot, snapshot, redis, execution) and their external dependencies
 
 ### Pending Todos
 
@@ -153,6 +156,6 @@ None currently. Phase 5 execution can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-30T02:27:02.344Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-03-30T02:33:37.530Z
+Stopped at: Completed 05-04-PLAN.md
 Resume file: None

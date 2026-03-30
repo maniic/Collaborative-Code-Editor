@@ -15,7 +15,7 @@ This roadmap delivers a backend-only collaborative code editor in coherent capab
 - [x] **Phase 2: Real-Time OT Collaboration** - Participants can edit the same document concurrently with guaranteed convergence. (completed 2026-03-27)
 - [x] **Phase 3: Durable Persistence and Multi-Instance Coordination** - Session data survives restarts and stays consistent across 2-3 backend instances. (completed 2026-03-29)
 - [x] **Phase 4: Sandboxed Code Execution** - Participants can execute shared code safely in constrained Docker environments. (completed 2026-03-29)
-- [ ] **Phase 5: Integration Hardening and Developer Docs** - The full stack is verifiable via integration tests and reproducible local setup docs.
+- [x] **Phase 5: Integration Hardening and Developer Docs** - The full stack is verifiable via integration tests and reproducible local setup docs. (completed 2026-03-30)
 
 ## Phase Details
 
@@ -129,4 +129,4 @@ Plans:
 | 2. Real-Time OT Collaboration | 3/3 | Complete | 2026-03-27 |
 | 3. Durable Persistence and Multi-Instance Coordination | 4/4 | Complete | 2026-03-29 |
 | 4. Sandboxed Code Execution | 4/4 | Complete | 2026-03-29 |
-| 5. Integration Hardening and Developer Docs | 3/4 | In Progress|  |
+| 5. Integration Hardening and Developer Docs | 4/4 | Complete   | 2026-03-30 |
