@@ -67,7 +67,7 @@ public class ExecutionLanguageSpecResolver {
         return new LanguageSpec(
                 properties.getPythonImage(),
                 "main.py",
-                List.of("python", "/input/main.py"),
+                List.of("python", "/workspace/main.py"),
                 Map.of("PYTHONDONTWRITEBYTECODE", "1")
         );
     }
@@ -79,7 +79,7 @@ public class ExecutionLanguageSpecResolver {
                 properties.getJavaImage(),
                 "Main.java",
                 List.of("sh", "-lc",
-                        "cp /input/Main.java /workspace/Main.java && javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main"),
+                        "javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main"),
                 Map.of()
         );
     }

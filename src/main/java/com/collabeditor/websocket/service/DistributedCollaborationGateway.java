@@ -408,7 +408,9 @@ public class DistributedCollaborationGateway {
                 continue;
             }
             try {
-                socket.sendMessage(message);
+                synchronized (socket) {
+                    socket.sendMessage(message);
+                }
             } catch (IOException e) {
                 log.warn("Failed to send {} to socket {}: {}", type, socket.getId(), e.getMessage());
             }

@@ -10,16 +10,19 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.ExecCreateCmd;
+import com.github.dockerjava.api.command.ExecCreateCmdResponse;
+import com.github.dockerjava.api.command.ExecStartCmd;
 import com.github.dockerjava.api.command.InspectImageCmd;
 import com.github.dockerjava.api.command.InspectImageResponse;
+import com.github.dockerjava.api.command.InspectExecCmd;
+import com.github.dockerjava.api.command.InspectExecResponse;
 import com.github.dockerjava.api.command.KillContainerCmd;
-import com.github.dockerjava.api.command.LogContainerCmd;
 import com.github.dockerjava.api.command.RemoveContainerCmd;
 import com.github.dockerjava.api.command.StartContainerCmd;
-import com.github.dockerjava.api.command.WaitContainerCmd;
-import com.github.dockerjava.api.command.WaitContainerResultCallback;
 import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.api.model.StreamType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,7 @@ import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,6 +45,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.RETURNS_SELF;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +81,7 @@ class DockerSandboxRunnerTest {
     }
 
     @Test
-    @DisplayName("Python run uses python:3.12-slim image and python /input/main.py command")
+    @DisplayName("Python run uses python:3.12-slim image and python /workspace/main.py command")
     void pythonRunUsesCorrectImageAndCommand() throws Exception {
         ExecutionSourceSnapshot snapshot = new ExecutionSourceSnapshot(
                 UUID.randomUUID(), UUID.randomUUID(), "user@test.com",
@@ -92,12 +97,13 @@ class DockerSandboxRunnerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> cmdCaptor = ArgumentCaptor.forClass(List.class);
+        verify(dockerClient, times(2)).execCreateCmd(eq("container-py-1"));
         verify(createCmd).withCmd(cmdCaptor.capture());
-        assertThat(cmdCaptor.getValue()).containsExactly("python", "/input/main.py");
+        assertThat(cmdCaptor.getValue()).containsExactly("sh", "-lc", "while true; do sleep 3600; done");
     }
 
     @Test
-    @DisplayName("Java run uses eclipse-temurin:17-jdk-jammy and cp /input/Main.java /workspace/Main.java && javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main")
+    @DisplayName("Java run uses eclipse-temurin:17-jdk-jammy and javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main")
     void javaRunUsesCorrectImageAndCommand() throws Exception {
         ExecutionSourceSnapshot snapshot = new ExecutionSourceSnapshot(
                 UUID.randomUUID(),
@@ -114,12 +120,24 @@ class DockerSandboxRunnerTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<String>> cmdCaptor = ArgumentCaptor.forClass(List.class);
+        verify(dockerClient, times(2)).execCreateCmd(eq("container-java-1"));
         verify(createCmd).withCmd(cmdCaptor.capture());
-        assertThat(cmdCaptor.getValue()).containsExactly(
-                "sh",
-                "-lc",
-                "cp /input/Main.java /workspace/Main.java && javac -d /workspace/out /workspace/Main.java && java -cp /workspace/out Main"
-        );
+        assertThat(cmdCaptor.getValue()).containsExactly("sh", "-lc", "while true; do sleep 3600; done");
+    }
+
+    @Test
+    @DisplayName("Source is copied into /workspace for the sandbox container")
+    void sourceIsCopiedIntoWorkspace() throws Exception {
+        ExecutionSourceSnapshot snapshot = new ExecutionSourceSnapshot(
+                UUID.randomUUID(), UUID.randomUUID(), "user@test.com",
+                "PYTHON", 1L, "print('hello')");
+
+        String containerId = "container-copy-1";
+        mockExecutionLifecycle(containerId, 0);
+
+        runner.run(snapshot);
+
+        verify(dockerClient, times(2)).execCreateCmd(containerId);
     }
 
     @Test
@@ -242,17 +260,64 @@ class DockerSandboxRunnerTest {
         StartContainerCmd startContainerCmd = mock(StartContainerCmd.class);
         when(dockerClient.startContainerCmd(containerId)).thenReturn(startContainerCmd);
 
-        WaitContainerCmd waitContainerCmd = mock(WaitContainerCmd.class);
-        WaitContainerResultCallback waitCallback = mock(WaitContainerResultCallback.class);
-        when(dockerClient.waitContainerCmd(containerId)).thenReturn(waitContainerCmd);
-        when(waitContainerCmd.exec(any(WaitContainerResultCallback.class))).thenReturn(waitCallback);
-        when(waitCallback.awaitStatusCode(anyLong(), eq(TimeUnit.SECONDS))).thenReturn(exitCode);
+        ExecCreateCmd stageExecCreateCmd = mock(ExecCreateCmd.class, RETURNS_SELF);
+        ExecCreateCmdResponse stageExecCreateResponse = mock(ExecCreateCmdResponse.class);
+        when(stageExecCreateResponse.getId()).thenReturn("stage-" + containerId);
+        when(stageExecCreateCmd.exec()).thenReturn(stageExecCreateResponse);
 
-        LogContainerCmd logContainerCmd = mock(LogContainerCmd.class, RETURNS_SELF);
-        when(dockerClient.logContainerCmd(containerId)).thenReturn(logContainerCmd);
-        ResultCallback.Adapter<Frame> logCallback = mock(ResultCallback.Adapter.class);
-        when(logContainerCmd.exec(any(ResultCallback.Adapter.class))).thenReturn(logCallback);
-        when(logCallback.awaitCompletion(anyLong(), eq(TimeUnit.SECONDS))).thenReturn(true);
+        ExecCreateCmd runExecCreateCmd = mock(ExecCreateCmd.class, RETURNS_SELF);
+        ExecCreateCmdResponse runExecCreateResponse = mock(ExecCreateCmdResponse.class);
+        when(runExecCreateResponse.getId()).thenReturn("run-" + containerId);
+        when(runExecCreateCmd.exec()).thenReturn(runExecCreateResponse);
+        when(dockerClient.execCreateCmd(containerId)).thenReturn(stageExecCreateCmd, runExecCreateCmd);
+
+        ExecStartCmd stageExecStartCmd = mock(ExecStartCmd.class, RETURNS_SELF);
+        when(dockerClient.execStartCmd("stage-" + containerId)).thenReturn(stageExecStartCmd);
+        when(stageExecStartCmd.exec(any(ResultCallback.Adapter.class))).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ResultCallback.Adapter<Frame> callback = invocation.getArgument(0);
+            callback.onComplete();
+            return callback;
+        });
+
+        ExecStartCmd runExecStartCmd = mock(ExecStartCmd.class, RETURNS_SELF);
+        when(dockerClient.execStartCmd("run-" + containerId)).thenReturn(runExecStartCmd);
+        if (exitCode == null) {
+            ResultCallback.Adapter<Frame> timeoutCallback = mock(ResultCallback.Adapter.class);
+            when(runExecStartCmd.exec(any(ResultCallback.Adapter.class))).thenReturn(timeoutCallback);
+            when(timeoutCallback.awaitCompletion(anyLong(), eq(TimeUnit.SECONDS))).thenReturn(false);
+        } else {
+            when(runExecStartCmd.exec(any(ResultCallback.Adapter.class))).thenAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                ResultCallback.Adapter<Frame> callback = invocation.getArgument(0);
+                if (exitCode == 0) {
+                    callback.onNext(new Frame(StreamType.STDOUT, "ok".getBytes(StandardCharsets.UTF_8)));
+                } else {
+                    callback.onNext(new Frame(StreamType.STDERR, "failed".getBytes(StandardCharsets.UTF_8)));
+                }
+                callback.onComplete();
+                return callback;
+            });
+        }
+
+        InspectExecCmd stageInspectExecCmd = mock(InspectExecCmd.class);
+        InspectExecResponse stageInspectResponse = mock(InspectExecResponse.class);
+        when(stageInspectResponse.isRunning()).thenReturn(false);
+        when(stageInspectResponse.getExitCodeLong()).thenReturn(0L);
+        when(dockerClient.inspectExecCmd("stage-" + containerId)).thenReturn(stageInspectExecCmd);
+        when(stageInspectExecCmd.exec()).thenReturn(stageInspectResponse);
+
+        InspectExecCmd runInspectExecCmd = mock(InspectExecCmd.class);
+        InspectExecResponse runInspectResponse = mock(InspectExecResponse.class);
+        when(dockerClient.inspectExecCmd("run-" + containerId)).thenReturn(runInspectExecCmd);
+        when(runInspectExecCmd.exec()).thenReturn(runInspectResponse);
+        if (exitCode == null) {
+            when(runInspectResponse.isRunning()).thenReturn(true);
+            when(runInspectResponse.getExitCode()).thenReturn(null);
+        } else {
+            when(runInspectResponse.isRunning()).thenReturn(false);
+            when(runInspectResponse.getExitCode()).thenReturn(exitCode);
+        }
 
         RemoveContainerCmd removeContainerCmd = mock(RemoveContainerCmd.class, RETURNS_SELF);
         when(dockerClient.removeContainerCmd(containerId)).thenReturn(removeContainerCmd);

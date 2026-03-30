@@ -71,7 +71,9 @@ public class ExecutionBroadcastGateway {
                 continue;
             }
             try {
-                socket.sendMessage(message);
+                synchronized (socket) {
+                    socket.sendMessage(message);
+                }
             } catch (IOException e) {
                 log.warn("Failed to send execution_updated to socket {}: {}", socket.getId(), e.getMessage());
             }

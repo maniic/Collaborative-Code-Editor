@@ -246,7 +246,9 @@ public class CollaborationWebSocketHandler extends TextWebSocketHandler {
         CollaborationEnvelope envelope = new CollaborationEnvelope(
                 type.name(), objectMapper.valueToTree(payload));
         String json = objectMapper.writeValueAsString(envelope);
-        session.sendMessage(new TextMessage(json));
+        synchronized (session) {
+            session.sendMessage(new TextMessage(json));
+        }
     }
 
     private UUID getSessionId(WebSocketSession session) {

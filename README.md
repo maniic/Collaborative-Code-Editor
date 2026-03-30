@@ -13,7 +13,7 @@ Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker. Designed as a 
 - **Docker Compose v2** (`docker compose` subcommand, not `docker-compose` v1)
 - **Docker socket accessible** at `/var/run/docker.sock` (or override via `DOCKER_SOCKET_PATH` — see Quickstart)
 
-The app container mounts the host Docker socket so it can launch execution sandboxes. Colima users can set `DOCKER_SOCKET_PATH` to their Colima socket path (e.g., `~/.colima/default/docker.sock`).
+The app container mounts the Docker daemon socket so it can launch execution sandboxes. For Docker Desktop, Linux, and Colima Compose runs, keep `DOCKER_SOCKET_PATH=/var/run/docker.sock`. Do not point it at the host-side Colima client socket under `~/.colima/...`.
 
 ---
 
@@ -34,7 +34,7 @@ APP_REDIS_PORT=6379
 APP_JWT_SECRET=<at-least-32-character-random-secret>
 ```
 
-Optional override for non-default Docker socket (Colima, Rancher Desktop, etc.):
+Optional override only if your Docker daemon exposes a different Unix socket path inside its own host or VM:
 
 ```
 DOCKER_SOCKET_PATH=/var/run/docker.sock
@@ -146,8 +146,9 @@ Response: `200 OK`
 ```json
 {
   "accessToken": "<jwt>",
-  "tokenType": "Bearer",
-  "expiresIn": 900
+  "expiresInSeconds": 900,
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "user@example.com"
 }
 ```
 
@@ -188,10 +189,12 @@ Response: `201 Created`
 ```json
 {
   "sessionId": "550e8400-e29b-41d4-a716-446655440000",
-  "language": "PYTHON",
   "inviteCode": "AB3CDEF7",
-  "participantCount": 1,
-  "ownerId": "..."
+  "language": "PYTHON",
+  "ownerUserId": "550e8400-e29b-41d4-a716-446655440000",
+  "participantCap": 12,
+  "activeParticipants": 1,
+  "createdAt": "2026-03-30T03:00:00Z"
 }
 ```
 
@@ -227,6 +230,9 @@ Response: `202 Accepted`
 ```json
 {
   "executionId": "...",
+  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
+  "language": "PYTHON",
+  "sourceRevision": 42,
   "status": "QUEUED"
 }
 ```
@@ -243,10 +249,10 @@ Connect to the collaboration WebSocket after joining a session via REST.
 
 **Endpoint:** `ws://localhost:8080/ws/sessions/{sessionId}`
 
-Authentication is enforced at handshake time via the `Authorization` query parameter or header:
+Authentication is enforced at handshake time via the `Authorization` header:
 
-```
-ws://localhost:8080/ws/sessions/{sessionId}?token=<access_token>
+```http
+Authorization: Bearer <access_token>
 ```
 
 The user must be an active participant in the session (joined via `/api/sessions/join` or as the session owner). Messages are JSON.
@@ -260,11 +266,13 @@ The user must be an active participant in the session (joined via `/api/sessions
 ```json
 {
   "type": "submit_operation",
-  "baseRevision": 42,
-  "operation": {
-    "type": "insert",
+  "payload": {
+    "clientOperationId": "op-123",
+    "baseRevision": 42,
+    "operationType": "INSERT",
     "position": 10,
-    "text": "hello"
+    "text": "hello",
+    "length": null
   }
 }
 ```
@@ -274,10 +282,12 @@ Or a delete:
 ```json
 {
   "type": "submit_operation",
-  "baseRevision": 42,
-  "operation": {
-    "type": "delete",
+  "payload": {
+    "clientOperationId": "op-124",
+    "baseRevision": 42,
+    "operationType": "DELETE",
     "position": 5,
+    "text": null,
     "length": 3
   }
 }
@@ -288,9 +298,12 @@ Or a delete:
 ```json
 {
   "type": "update_presence",
-  "cursorPosition": 15,
-  "selectionStart": 10,
-  "selectionEnd": 15
+  "payload": {
+    "selection": {
+      "start": 10,
+      "end": 15
+    }
+  }
 }
 ```
 
@@ -302,7 +315,7 @@ Or a delete:
 |-------|-----------|
 | `document_sync` | On WebSocket connect — delivers the current document state and revision |
 | `operation_ack` | After the server accepts and commits the submitting client's operation |
-| `operation_applied` | After the server commits any operation — broadcast to all other clients in the room |
+| `operation_applied` | After the server commits any operation — broadcast to all connected clients in the room |
 | `operation_error` | When the server rejects a submitted operation (e.g., invalid base revision) |
 | `resync_required` | When the server detects a gap that cannot be resolved; client should reconnect |
 | `participant_joined` | When a participant connects to the WebSocket room |
@@ -315,8 +328,16 @@ Or a delete:
 ```json
 {
   "type": "document_sync",
-  "revision": 42,
-  "content": "def hello():\n    print('Hello')\n"
+  "payload": {
+    "document": "def hello():\n    print('Hello')\n",
+    "revision": 42,
+    "participants": [
+      {
+        "userId": "550e8400-e29b-41d4-a716-446655440000",
+        "email": "user@example.com"
+      }
+    ]
+  }
 }
 ```
 
@@ -325,11 +346,21 @@ Or a delete:
 ```json
 {
   "type": "execution_updated",
-  "executionId": "...",
-  "status": "COMPLETED",
-  "stdout": "Hello\n",
-  "stderr": "",
-  "exitCode": 0
+  "payload": {
+    "executionId": "7da45499-805f-4d6d-b909-128457bb0261",
+    "requestedByUserId": "550e8400-e29b-41d4-a716-446655440000",
+    "requestedByEmail": "user@example.com",
+    "language": "PYTHON",
+    "sourceRevision": 42,
+    "status": "COMPLETED",
+    "stdout": "Hello\n",
+    "stderr": "",
+    "exitCode": 0,
+    "createdAt": "2026-03-30T03:00:00Z",
+    "startedAt": "2026-03-30T03:00:01Z",
+    "finishedAt": "2026-03-30T03:00:02Z",
+    "message": "Execution completed successfully."
+  }
 }
 ```
 
@@ -427,4 +458,4 @@ Session language is set at creation time and cannot be changed. Execution captur
 
 ### Docker socket requirement
 
-The local Compose stack mounts the host Docker socket into the `app` container at `/var/run/docker.sock`. The `DOCKER_HOST` environment variable is set to `unix:///var/run/docker.sock` so `docker-java` auto-discovers it. Colima and Rancher Desktop users must set `DOCKER_SOCKET_PATH` in their `.env` file to point to the correct socket location.
+The local Compose stack mounts the Docker daemon socket into the `app` container at `/var/run/docker.sock`. The `DOCKER_HOST` environment variable is set to `unix:///var/run/docker.sock` so `docker-java` auto-discovers it. For Docker Desktop, Linux, and Colima Compose runs, the default `DOCKER_SOCKET_PATH=/var/run/docker.sock` is correct. Override it only if the Docker daemon itself exposes its socket at a different path.

@@ -8,15 +8,13 @@ import com.collabeditor.execution.service.ExecutionLanguageSpecResolver.Language
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.ExecCreateCmdResponse;
 import com.github.dockerjava.api.command.InspectImageCmd;
-import com.github.dockerjava.api.command.LogContainerCmd;
+import com.github.dockerjava.api.command.InspectExecResponse;
 import com.github.dockerjava.api.command.PullImageResultCallback;
-import com.github.dockerjava.api.command.WaitContainerResultCallback;
-import com.github.dockerjava.api.model.AccessMode;
-import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.api.model.StreamType;
 import com.github.dockerjava.api.exception.NotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,14 +22,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.attribute.PosixFilePermission;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -52,7 +45,8 @@ public class DockerSandboxRunner {
     private static final long TMP_TMPFS_BYTES = 33_554_432L;
     private static final String NON_ROOT_USER = "65534:65534";
     private static final int TIMEOUT_SECONDS = 10;
-    private static final String SANDBOX_ROOT_DIR = ".collabeditor-sandbox";
+    private static final String WORKSPACE_DIR = "/workspace";
+    private static final List<String> IDLE_COMMAND = List.of("sh", "-lc", "while true; do sleep 3600; done");
 
     private final DockerClient dockerClient;
     private final ExecutionLanguageSpecResolver languageSpecResolver;
@@ -73,22 +67,12 @@ public class DockerSandboxRunner {
      * @return the execution result with status, stdout, stderr, and exit code
      */
     public SandboxExecutionResult run(ExecutionSourceSnapshot snapshot) {
-        Path tempDir = null;
         String containerId = null;
 
         try {
             validateConfiguredLimits();
             LanguageSpec spec = languageSpecResolver.resolve(snapshot);
             ensureImageAvailable(spec.image());
-            tempDir = createSandboxInputDirectory();
-            Path sourceFile = tempDir.resolve(spec.sourceFilename());
-            Files.writeString(sourceFile, snapshot.sourceCode(), StandardCharsets.UTF_8);
-            makeReadableForSandbox(tempDir, sourceFile);
-
-            List<String> envList = new ArrayList<>();
-            for (Map.Entry<String, String> entry : spec.env().entrySet()) {
-                envList.add(entry.getKey() + "=" + entry.getValue());
-            }
 
             HostConfig hostConfig = new HostConfig()
                     .withMemory(MAX_MEMORY_BYTES)
@@ -96,23 +80,18 @@ public class DockerSandboxRunner {
                     .withNanoCPUs(NANO_CPUS)
                     .withNetworkMode("none")
                     .withReadonlyRootfs(true)
-                    .withBinds(
-                            new Bind(tempDir.toAbsolutePath().toString(),
-                                    new Volume("/input"), AccessMode.ro)
-                    )
                     .withTmpFs(Map.of(
-                            "/workspace", "rw,size=" + WORKSPACE_TMPFS_BYTES + ",uid=65534,gid=65534,mode=1777",
+                            WORKSPACE_DIR, "rw,size=" + WORKSPACE_TMPFS_BYTES + ",uid=65534,gid=65534,mode=1777",
                             "/tmp", "rw,size=" + TMP_TMPFS_BYTES + ",uid=65534,gid=65534,mode=1777"
                     ));
 
             String containerName = "sandbox-" + UUID.randomUUID().toString().substring(0, 8);
             CreateContainerResponse createResponse = dockerClient.createContainerCmd(spec.image())
                     .withImage(spec.image())
-                    .withCmd(spec.command())
+                    .withCmd(IDLE_COMMAND)
                     .withHostConfig(hostConfig)
                     .withUser(NON_ROOT_USER)
-                    .withWorkingDir("/workspace")
-                    .withEnv(envList)
+                    .withWorkingDir(WORKSPACE_DIR)
                     .withName(containerName)
                     .exec();
 
@@ -121,35 +100,8 @@ public class DockerSandboxRunner {
                     containerId, snapshot.sessionId(), snapshot.language());
 
             dockerClient.startContainerCmd(containerId).exec();
-
-            Integer exitCode;
-            try {
-                exitCode = dockerClient.waitContainerCmd(containerId)
-                        .exec(new WaitContainerResultCallback())
-                        .awaitStatusCode(TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            } catch (RuntimeException timeoutException) {
-                if (isWaitTimeout(timeoutException)) {
-                    exitCode = null;
-                } else {
-                    throw timeoutException;
-                }
-            }
-
-            if (exitCode == null) {
-                log.warn("Container {} timed out after {}s, killing", containerId, TIMEOUT_SECONDS);
-                killContainerQuietly(containerId);
-                String stdout = collectLogs(containerId, true, false);
-                String stderr = collectLogs(containerId, false, true);
-                return new SandboxExecutionResult(ExecutionStatus.TIMED_OUT, stdout, stderr, null);
-            }
-
-            String stdout = collectLogs(containerId, true, false);
-            String stderr = collectLogs(containerId, false, true);
-
-            ExecutionStatus status = (exitCode == 0)
-                    ? ExecutionStatus.COMPLETED
-                    : ExecutionStatus.FAILED;
-            return new SandboxExecutionResult(status, stdout, stderr, exitCode);
+            stageSourceInWorkspace(containerId, spec, snapshot.sourceCode());
+            return runSandboxCommand(containerId, spec);
 
         } catch (IllegalArgumentException e) {
             return new SandboxExecutionResult(ExecutionStatus.FAILED, "", e.getMessage(), null);
@@ -173,10 +125,6 @@ public class DockerSandboxRunner {
                     log.warn("Failed to remove container {}: {}",
                             containerId, removeEx.getMessage());
                 }
-            }
-
-            if (tempDir != null) {
-                deleteTempDir(tempDir);
             }
         }
     }
@@ -227,29 +175,6 @@ public class DockerSandboxRunner {
         }
     }
 
-    private String collectLogs(String containerId, boolean includeStdout, boolean includeStderr) {
-        StringBuilder sb = new StringBuilder();
-        try {
-            LogContainerCmd logContainerCmd = dockerClient.logContainerCmd(containerId);
-            logContainerCmd
-                    .withStdOut(includeStdout)
-                    .withStdErr(includeStderr)
-                    .withFollowStream(true)
-                    .exec(new ResultCallback.Adapter<Frame>() {
-                        @Override
-                        public void onNext(Frame frame) {
-                            sb.append(new String(
-                                    frame.getPayload(), StandardCharsets.UTF_8));
-                        }
-                    })
-                    .awaitCompletion(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            log.warn("Failed to collect {} logs from container {}: {}",
-                    includeStdout ? "stdout" : "stderr", containerId, e.getMessage());
-        }
-        return sb.toString();
-    }
-
     private String errorMessage(Exception exception) {
         String message = exception.getMessage();
         return (message == null || message.isBlank())
@@ -257,54 +182,93 @@ public class DockerSandboxRunner {
                 : message;
     }
 
-    private boolean isWaitTimeout(RuntimeException exception) {
-        String message = exception.getMessage();
-        return message != null && message.contains("Awaiting status code timeout");
-    }
+    private void stageSourceInWorkspace(String containerId, LanguageSpec spec, String sourceCode)
+            throws InterruptedException {
+        String targetPath = WORKSPACE_DIR + "/" + spec.sourceFilename();
+        String encodedSource = Base64.getEncoder().encodeToString(
+                (sourceCode == null ? "" : sourceCode).getBytes(StandardCharsets.UTF_8)
+        );
+        ExecCreateCmdResponse createResponse = dockerClient.execCreateCmd(containerId)
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withTty(false)
+                .withUser(NON_ROOT_USER)
+                .withWorkingDir(WORKSPACE_DIR)
+                .withEnv(List.of("SOURCE_B64=" + encodedSource))
+                .withCmd("sh", "-lc", "printf '%s' \"$SOURCE_B64\" | base64 -d > " + targetPath)
+                .exec();
 
-    private void deleteTempDir(Path dir) {
-        try {
-            Files.walk(dir)
-                    .sorted(Comparator.reverseOrder())
-                    .forEach(p -> {
-                        try {
-                            Files.deleteIfExists(p);
-                        } catch (IOException ignored) {
-                            // best effort cleanup
-                        }
-                    });
-        } catch (IOException ignored) {
-            // best effort cleanup
+        String execId = createResponse.getId();
+        ProcessOutput output = streamExec(
+                dockerClient.execStartCmd(execId)
+                        .withDetach(false)
+                        .withTty(false),
+                5
+        );
+
+        InspectExecResponse inspect = dockerClient.inspectExecCmd(execId).exec();
+        if (!output.completed() || Boolean.TRUE.equals(inspect.isRunning()) || inspect.getExitCodeLong() == null
+                || inspect.getExitCodeLong() != 0L) {
+            throw new IllegalStateException("Could not stage source into sandbox container: " + output.stderr());
         }
     }
 
-    private void makeReadableForSandbox(Path tempDir, Path sourceFile) {
-        try {
-            Files.setPosixFilePermissions(tempDir, Set.of(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.OWNER_EXECUTE,
-                    PosixFilePermission.GROUP_READ,
-                    PosixFilePermission.GROUP_EXECUTE,
-                    PosixFilePermission.OTHERS_READ,
-                    PosixFilePermission.OTHERS_EXECUTE
-            ));
-            Files.setPosixFilePermissions(sourceFile, Set.of(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE,
-                    PosixFilePermission.GROUP_READ,
-                    PosixFilePermission.OTHERS_READ
-            ));
-        } catch (UnsupportedOperationException ignored) {
-            // Non-POSIX filesystems are not expected in supported local setups.
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not set sandbox input permissions", e);
+    private SandboxExecutionResult runSandboxCommand(String containerId, LanguageSpec spec) throws InterruptedException {
+        ExecCreateCmdResponse createResponse = dockerClient.execCreateCmd(containerId)
+                .withAttachStdout(true)
+                .withAttachStderr(true)
+                .withTty(false)
+                .withUser(NON_ROOT_USER)
+                .withWorkingDir(WORKSPACE_DIR)
+                .withEnv(spec.env().entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).toList())
+                .withCmd(spec.command().toArray(String[]::new))
+                .exec();
+
+        String execId = createResponse.getId();
+        ProcessOutput output = streamExec(
+                dockerClient.execStartCmd(execId)
+                        .withDetach(false)
+                        .withTty(false),
+                TIMEOUT_SECONDS
+        );
+        InspectExecResponse inspect = dockerClient.inspectExecCmd(execId).exec();
+
+        if (!output.completed() || Boolean.TRUE.equals(inspect.isRunning())) {
+            log.warn("Container {} timed out after {}s, killing", containerId, TIMEOUT_SECONDS);
+            killContainerQuietly(containerId);
+            return new SandboxExecutionResult(ExecutionStatus.TIMED_OUT, output.stdout(), output.stderr(), null);
         }
+
+        Integer exitCode = inspect.getExitCode();
+        if (exitCode == null) {
+            throw new IllegalStateException("Execution did not produce an exit code");
+        }
+
+        ExecutionStatus status = (exitCode == 0)
+                ? ExecutionStatus.COMPLETED
+                : ExecutionStatus.FAILED;
+        return new SandboxExecutionResult(status, output.stdout(), output.stderr(), exitCode);
     }
 
-    private Path createSandboxInputDirectory() throws IOException {
-        Path sandboxRoot = Path.of(System.getProperty("user.home"), SANDBOX_ROOT_DIR);
-        Files.createDirectories(sandboxRoot);
-        return Files.createTempDirectory(sandboxRoot, "sandbox-");
+    private ProcessOutput streamExec(com.github.dockerjava.api.command.ExecStartCmd execStartCmd, int timeoutSeconds)
+            throws InterruptedException {
+        StringBuilder stdout = new StringBuilder();
+        StringBuilder stderr = new StringBuilder();
+        ResultCallback.Adapter<Frame> callback = new ResultCallback.Adapter<>() {
+            @Override
+            public void onNext(Frame frame) {
+                if (frame.getStreamType() == StreamType.STDERR) {
+                    stderr.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
+                } else {
+                    stdout.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
+                }
+            }
+        };
+
+        boolean completed = execStartCmd.exec(callback).awaitCompletion(timeoutSeconds, TimeUnit.SECONDS);
+        return new ProcessOutput(stdout.toString(), stderr.toString(), completed);
+    }
+
+    private record ProcessOutput(String stdout, String stderr, boolean completed) {
     }
 }
