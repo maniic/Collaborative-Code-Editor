@@ -112,7 +112,13 @@ Plans:
   1. Testcontainers integration tests validate persistence, Redis coordination, and code execution flows in one automated run.
   2. Developer can start backend, PostgreSQL, and Redis using docker-compose by following documented steps.
   3. README includes setup guidance, API documentation, architecture notes, and explicit design-decision rationale.
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md - Curate the canonical Phase 5 integration verification run
+- [ ] 05-02-PLAN.md - Add app container packaging and health surface for Compose
+- [ ] 05-03-PLAN.md - Create the full-stack docker-compose workflow and env contract
+- [ ] 05-04-PLAN.md - Replace README with onboarding, API/WebSocket docs, and architecture rationale
 
 ## Progress
 
@@ -123,4 +129,4 @@ Plans:
 | 2. Real-Time OT Collaboration | 3/3 | Complete | 2026-03-27 |
 | 3. Durable Persistence and Multi-Instance Coordination | 4/4 | Complete | 2026-03-29 |
 | 4. Sandboxed Code Execution | 4/4 | Complete | 2026-03-29 |
-| 5. Integration Hardening and Developer Docs | 0/TBD | Not started | - |
+| 5. Integration Hardening and Developer Docs | 0/4 | Planned | - |
