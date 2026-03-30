@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-30T02:15:27.073Z"
-last_activity: 2026-03-30 -- Planned Phase 5 integration hardening and developer docs
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-30T02:23:03.472Z"
+last_activity: 2026-03-29 -- Completed 05-01 integrationTest task and suite tagging
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 22
-  completed_plans: 19
+  completed_plans: 20
   percent: 86
 ---
 
@@ -61,6 +61,7 @@ Progress: [█████████░] 86%
 | Phase 04 P03 | 28min | 3 tasks | 11 files |
 | Phase 04 P04 | 30min | 3 tasks | 4 files |
 | Phase 05 P01 | 25 | 3 tasks | 7 files |
+| Phase 05 P02 | 27 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,9 @@ Recent decisions affecting current work:
 - [Phase 05]: README should prioritize first-run success, representative REST/WebSocket contract examples, and one high-signal architecture diagram instead of exhaustive generated reference docs. — Keeps onboarding practical and portfolio-quality.
 - [Phase 05-01]: integrationTest task uses includeTags("integration") so focused suites stay focused while one command proves the stack
 - [Phase 05-01]: tasks.withType<Test> provides shared Docker/Testcontainers env wiring inherited by the registered integrationTest task automatically
+- [Phase 05-02]: spring-boot-starter-actuator added with management.endpoints.web.exposure.include: health — only the health endpoint is exposed, keeping Actuator surface minimal
+- [Phase 05-02]: HealthEndpointTest uses Testcontainers PostgreSQL so the full Spring context boots (Flyway, JPA validate, security filter chain) — proves unauthenticated 200 against real infrastructure
+- [Phase 05-02]: DOCKER_HOST=unix:///var/run/docker.sock set as ENV in Dockerfile — DefaultDockerClientConfig auto-discovers the mounted socket so Phase 4 execution works inside the app container
 
 ### Pending Todos
 
@@ -146,6 +150,6 @@ None currently. Phase 5 execution can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-30T02:15:27.071Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-30T02:23:03.469Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

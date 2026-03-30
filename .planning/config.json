@@ -1,7 +1,10 @@
 {
   "mode": "yolo",
   "granularity": "standard",
-  "model_profile": "quality",
+  "model_profile": "balanced",
+  "model_overrides": {
+    "gsd-verifier": "opus"
+  },
   "commit_docs": true,
   "search_gitignored": false,
   "branching_strategy": "none",
