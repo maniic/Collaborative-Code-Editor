@@ -19,6 +19,15 @@ spring:
     locations: classpath:db/migration
     enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 app:
   security:
     jwt-secret: ${APP_JWT_SECRET:}
