@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 5 planned
-last_updated: "2026-03-30T02:05:54Z"
+status: executing
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-30T02:15:27.073Z"
 last_activity: 2026-03-30 -- Planned Phase 5 integration hardening and developer docs
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 22
-  completed_plans: 18
-  percent: 83
+  completed_plans: 19
+  percent: 86
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 5
-Plan: 05-01 through 05-04 planned
-Status: Phase 5 planned -- ready to execute
-Last activity: 2026-03-30 -- Planned Phase 5 integration hardening and developer docs
+Plan: 05-02 (05-01 complete)
+Status: Phase 5 executing -- 05-01 done, 05-02 through 05-04 remaining
+Last activity: 2026-03-29 -- Completed 05-01 integrationTest task and suite tagging
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Progress: [████████░░] 83%
 | Phase 04 P02 | 24min | 3 tasks | 5 files |
 | Phase 04 P03 | 28min | 3 tasks | 11 files |
 | Phase 04 P04 | 30min | 3 tasks | 4 files |
+| Phase 05 P01 | 25 | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,8 @@ Recent decisions affecting current work:
 - [Phase 05]: The Compose-hosted app must expose a real Actuator `/actuator/health` endpoint and mount a configurable host Docker socket path. — Keeps the local stack honest about both service health and Phase 4 execution's Docker-daemon dependency.
 - [Phase 05]: `docker-compose` should be the canonical local reproduction path for `app`, PostgreSQL, and Redis, with infra-only-plus-Gradle documented only as a secondary inner-loop option. — Meets the roadmap's reproducible local setup goal directly.
 - [Phase 05]: README should prioritize first-run success, representative REST/WebSocket contract examples, and one high-signal architecture diagram instead of exhaustive generated reference docs. — Keeps onboarding practical and portfolio-quality.
+- [Phase 05-01]: integrationTest task uses includeTags("integration") so focused suites stay focused while one command proves the stack
+- [Phase 05-01]: tasks.withType<Test> provides shared Docker/Testcontainers env wiring inherited by the registered integrationTest task automatically
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ None currently. Phase 5 execution can begin.
 
 ## Session Continuity
 
-Last session: 2026-03-30T02:05:54Z
-Stopped at: Phase 5 planned
-Resume file: .planning/phases/05-integration-hardening-and-developer-docs/05-01-PLAN.md
+Last session: 2026-03-30T02:15:27.071Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
