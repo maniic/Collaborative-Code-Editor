@@ -15,6 +15,8 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -52,8 +54,13 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
             return false;
         }
 
-        // Extract and validate bearer token
+        // Extract and validate bearer token. Browsers cannot set headers on
+        // WebSocket connections, so an access_token query parameter is
+        // accepted as a fallback (RFC 6750 §2.3).
         String token = extractBearerToken(request.getHeaders());
+        if (token == null) {
+            token = extractQueryToken(request.getURI());
+        }
         if (token == null) {
             log.debug("WebSocket handshake rejected: missing bearer token");
             return false;
@@ -101,6 +108,20 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
         String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader != null && authHeader.startsWith(BEARER_PREFIX)) {
             return authHeader.substring(BEARER_PREFIX.length());
+        }
+        return null;
+    }
+
+    private String extractQueryToken(URI uri) {
+        String query = uri.getQuery();
+        if (query == null) {
+            return null;
+        }
+        for (String param : query.split("&")) {
+            if (param.startsWith("access_token=")) {
+                String value = param.substring("access_token=".length());
+                return URLDecoder.decode(value, StandardCharsets.UTF_8);
+            }
         }
         return null;
     }

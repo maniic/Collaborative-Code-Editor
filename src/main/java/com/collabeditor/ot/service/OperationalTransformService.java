@@ -108,7 +108,11 @@ public class OperationalTransformService {
 
     /**
      * Transform insert against delete.
-     * If insert point falls within the delete range, reposition insert to delete start.
+     * An insert strictly inside the delete range is annulled (becomes a no-op),
+     * because {@link #transformDeleteInsert} expands the delete to swallow the
+     * inserted text when applied in the opposite order. Repositioning the insert
+     * instead of annulling it breaks TP1: the two application orders would
+     * produce different documents.
      */
     private TextOperation transformInsertDelete(InsertOperation ins, DeleteOperation del) {
         if (ins.position() <= del.position()) {
@@ -118,8 +122,13 @@ public class OperationalTransformService {
             // Insert is after delete range; shift left by delete length
             return ins.withPosition(ins.position() - del.length());
         } else {
-            // Insert is within delete range; reposition to delete start
-            return ins.withPosition(del.position());
+            // Insert is strictly within the delete range; annul to a no-op delete
+            return new DeleteOperation(
+                    ins.authorUserId(),
+                    ins.baseRevision(),
+                    ins.clientOperationId(),
+                    del.position(),
+                    0);
         }
     }
 

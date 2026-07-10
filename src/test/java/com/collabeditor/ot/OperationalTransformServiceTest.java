@@ -210,15 +210,37 @@ class OperationalTransformServiceTest {
         }
 
         @Test
-        @DisplayName("insert within delete range - preserves insert at delete start")
+        @DisplayName("insert within delete range - annulled to a no-op (TP1)")
         void insertWithinDeleteRange() {
             InsertOperation ins = insert(userA, 4, "xy");
             DeleteOperation del = delete(userB, 2, 5);
 
             TextOperation result = otService.transform(ins, del);
-            assertThat(result).isInstanceOf(InsertOperation.class);
-            // Insert point is inside delete range -> insert repositioned to delete start
-            assertThat(((InsertOperation) result).position()).isEqualTo(2);
+            // The opposite order expands the delete to swallow this insert
+            // (transformDeleteInsert), so this order must annul the insert:
+            // repositioning it would break TP1 convergence.
+            assertThat(result).isInstanceOf(DeleteOperation.class);
+            DeleteOperation r = (DeleteOperation) result;
+            assertThat(r.length()).isZero();
+            assertThat(r.position()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("TP1: insert-inside-delete converges in both application orders")
+        void insertInsideDeleteConverges() {
+            String doc = "abcdefgh";
+            InsertOperation ins = insert(userA, 4, "XY"); // inside [2, 7)
+            DeleteOperation del = delete(userB, 2, 5);
+
+            String viaInsertFirst = otService.apply(
+                    otService.apply(doc, ins), otService.transform(del, ins));
+            TextOperation insTransformed = otService.transform(ins, del);
+            String afterDelete = otService.apply(doc, del);
+            String viaDeleteFirst = (insTransformed instanceof DeleteOperation noop && noop.length() == 0)
+                    ? afterDelete
+                    : otService.apply(afterDelete, insTransformed);
+
+            assertThat(viaInsertFirst).isEqualTo(viaDeleteFirst);
         }
 
         @Test
