@@ -39,7 +39,13 @@ public class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/refresh",
                     "/actuator/health",
-                    "/ws/**"
+                    "/ws/**",
+                    // Static web client (src/main/resources/static)
+                    "/",
+                    "/index.html",
+                    "/app.js",
+                    "/app.css",
+                    "/favicon.ico"
                 ).permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

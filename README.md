@@ -1,6 +1,6 @@
 # Collaborative Code Editor
 
-A real-time collaborative code editor backend. Multiple users join coding sessions via WebSocket, edit the same document simultaneously with conflict-free resolution using Operational Transform, and execute code together in Docker-sandboxed containers.
+A real-time collaborative code editor. Multiple users join coding sessions via WebSocket, edit the same document simultaneously with conflict-free resolution using Operational Transform, and execute code together in Docker-sandboxed containers. Ships with a zero-dependency browser client served by the backend itself.
 
 Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker.
 
@@ -106,6 +106,26 @@ All integration tests require Docker to be running locally (the same daemon used
 ```
 
 Runs the complete test suite including unit tests, slice tests, and integration tests. Use this to confirm nothing is broken before committing.
+
+---
+
+## Web Client
+
+Once the stack is up, open **http://localhost:8080/** for the built-in browser client (`src/main/resources/static/` — plain HTML/CSS/JS, no build step):
+
+- **Auth + lobby** — register/sign in, create a Python or Java session, or join one with an 8-character invite code.
+- **Live collaborative editing** — the client mirrors the server's OT transform rules (including the same-position insert tie-break and insert-annulled-by-delete rule), keeping an inflight/outbox pipeline so concurrent edits from every participant converge. Open the same session in two browser windows to watch edits merge in real time.
+- **Shared execution** — the ▶ Run button enqueues the current document into the Docker sandbox; status, stdout, and stderr stream back to *all* participants via `execution_updated` events.
+
+The client-side OT engine has its own convergence harness:
+
+```bash
+node scripts/test-ot-client.mjs
+```
+
+It simulates the server's canonical log plus 2-4 browser clients with randomized concurrent edits and message interleavings across 500 seeded scenarios, asserting every client converges to the server document.
+
+> Browsers cannot set an `Authorization` header on WebSocket handshakes, so the handshake interceptor also accepts the JWT as an `access_token` query parameter (RFC 6750 §2.3).
 
 ---
 
