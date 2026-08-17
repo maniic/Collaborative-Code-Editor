@@ -4,85 +4,192 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Collaborative Code Editor</title>
+<meta name="description" content="Real-time collaborative code editing with server-authoritative Operational Transform and Docker-sandboxed execution.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
 
-<div id="toast" class="toast hidden"></div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
 
-<!-- Auth -->
-<section id="view-auth" class="center-view">
-  <div class="panel auth-panel">
-    <h1>Collaborative<br>Code Editor</h1>
-    <p class="sub">Real-time pair programming with server-authoritative
-       Operational Transform and Docker-sandboxed execution.</p>
-    <label for="auth-email">Email</label>
-    <input id="auth-email" type="email" autocomplete="email" placeholder="you@example.com">
-    <label for="auth-password">Password <span class="hint">(min 8 chars)</span></label>
-    <input id="auth-password" type="password" autocomplete="current-password" placeholder="••••••••">
-    <div class="row">
-      <button id="login-btn" class="primary">Sign in</button>
-      <button id="register-btn">Create account</button>
+<!-- ============================ Auth ============================ -->
+<section id="view-auth" class="view auth-view">
+  <div class="auth-pitch">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M11 11 L6.5 16 L11 21" fill="none" stroke="var(--accent)" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 11 L25.5 16 L21 21" fill="none" stroke="var(--green)" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="17.5" y1="9" x2="14.5" y2="23" stroke="var(--text-faint)" stroke-width="2.2"
+              stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Collaborative Code Editor</span>
+    </div>
+    <h1 class="pitch-title">Write code together,<br>in the same document.</h1>
+    <p class="pitch-body">
+      Every edit is transformed server-side, so concurrent changes from every
+      participant converge on one document — no conflicts, no lost keystrokes.
+    </p>
+    <ul class="pitch-list">
+      <li>
+        <strong>Server-authoritative Operational Transform</strong>
+        <span>Concurrent edits converge deterministically, proven by 500 randomized scenarios.</span>
+      </li>
+      <li>
+        <strong>Snapshot-plus-replay recovery</strong>
+        <span>Rooms rebuild from the latest checkpoint plus the operations after it.</span>
+      </li>
+      <li>
+        <strong>Docker-sandboxed execution</strong>
+        <span>Run Python and Java in a locked-down container; output streams to everyone.</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="auth-form-wrap">
+    <div class="card auth-card">
+      <div class="tabs" role="tablist">
+        <button id="tab-signin" class="tab is-active" role="tab" aria-selected="true">Sign in</button>
+        <button id="tab-signup" class="tab" role="tab" aria-selected="false">Create account</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" name="email" type="email" autocomplete="email"
+                 placeholder="you@example.com" spellcheck="false">
+          <p class="field-error" id="auth-email-error" aria-live="polite"></p>
+        </div>
+
+        <div class="field">
+          <label for="auth-password">Password</label>
+          <input id="auth-password" name="password" type="password"
+                 autocomplete="current-password" placeholder="At least 8 characters">
+          <p class="field-error" id="auth-password-error" aria-live="polite"></p>
+        </div>
+
+        <p class="form-error" id="auth-form-error" aria-live="polite"></p>
+
+        <button id="auth-submit" class="btn btn-primary btn-block" type="submit">
+          <span class="btn-label">Sign in</span>
+        </button>
+      </form>
     </div>
   </div>
 </section>
 
-<!-- Lobby -->
-<section id="view-lobby" class="center-view hidden">
-  <div class="panel lobby-panel">
-    <div class="lobby-head">
-      <h2>Sessions</h2>
-      <span id="lobby-user" class="chip me"></span>
+<!-- ============================ Lobby ============================ -->
+<section id="view-lobby" class="view lobby-view hidden">
+  <header class="app-bar">
+    <div class="brand brand-sm">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M11 11 L6.5 16 L11 21" fill="none" stroke="var(--accent)" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 11 L25.5 16 L21 21" fill="none" stroke="var(--green)" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="17.5" y1="9" x2="14.5" y2="23" stroke="var(--text-faint)" stroke-width="2.4"
+              stroke-linecap="round"/>
+      </svg>
+      <span class="brand-name">Collaborative Code Editor</span>
     </div>
-    <div class="row">
-      <select id="create-language">
-        <option value="PYTHON">Python</option>
-        <option value="JAVA">Java</option>
-      </select>
-      <button id="create-btn" class="primary">New session</button>
-    </div>
-    <div class="row">
-      <input id="join-code" placeholder="Invite code (e.g. K7PQ2MRX)" maxlength="8" spellcheck="false">
-      <button id="join-btn">Join</button>
-    </div>
-    <div class="lobby-head">
-      <h3>Your sessions</h3>
-      <button id="refresh-btn" class="ghost">Refresh</button>
-    </div>
-    <ul id="session-list" class="session-list"></ul>
-  </div>
-</section>
-
-<!-- Editor -->
-<section id="view-editor" class="editor-view hidden">
-  <header>
-    <div class="left">
-      <button id="leave-btn" class="ghost">← Leave</button>
-      <span class="invite">Invite: <code id="editor-invite"></code></span>
-      <button id="copy-invite" class="ghost" title="Copy invite code">⧉</button>
-      <span id="editor-language" class="pill lang"></span>
-    </div>
-    <div id="participants" class="participants"></div>
-    <div class="right">
-      <span id="revision" class="pill">rev 0</span>
-      <span id="conn-status" class="pill warn">connecting…</span>
-      <button id="run-btn" class="primary">▶ Run</button>
+    <div class="app-bar-right">
+      <span id="lobby-user" class="user-pill"></span>
+      <button id="signout-btn" class="btn btn-ghost btn-sm">Sign out</button>
     </div>
   </header>
-  <main>
-    <textarea id="editor" spellcheck="false" disabled
-      placeholder="Start typing — everyone in the session sees your edits live."></textarea>
-    <aside class="output">
-      <div class="output-head">
-        <span>OUTPUT</span>
-        <span id="exec-status" class="exec-status"></span>
+
+  <main class="lobby-main">
+    <div class="lobby-grid">
+      <div class="card">
+        <h2 class="card-title">Start a session</h2>
+        <p class="card-sub">Pick a language. It is fixed for the life of the session.</p>
+        <div class="segmented" role="radiogroup" aria-label="Language">
+          <button class="segment is-active" data-language="PYTHON" role="radio" aria-checked="true">
+            <span class="lang-dot lang-python"></span>Python
+          </button>
+          <button class="segment" data-language="JAVA" role="radio" aria-checked="false">
+            <span class="lang-dot lang-java"></span>Java
+          </button>
+        </div>
+        <button id="create-btn" class="btn btn-primary btn-block">Create session</button>
       </div>
-      <pre id="exec-output"></pre>
+
+      <div class="card">
+        <h2 class="card-title">Join with a code</h2>
+        <p class="card-sub">Ask a participant for their 8-character invite code.</p>
+        <form id="join-form" class="join-row" novalidate>
+          <input id="join-code" placeholder="K7PQ2MRX" maxlength="8" spellcheck="false"
+                 autocapitalize="characters" autocomplete="off" class="code-input">
+          <button id="join-btn" class="btn btn-secondary" type="submit">Join</button>
+        </form>
+        <p class="field-error" id="join-error" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <section class="sessions">
+      <div class="section-head">
+        <h2 class="section-title">Your sessions</h2>
+        <button id="refresh-btn" class="btn btn-ghost btn-sm">Refresh</button>
+      </div>
+      <ul id="session-list" class="session-list"></ul>
+    </section>
+  </main>
+</section>
+
+<!-- ============================ Editor ============================ -->
+<section id="view-editor" class="view editor-view hidden">
+  <header class="app-bar editor-bar">
+    <div class="app-bar-left">
+      <button id="leave-btn" class="btn btn-ghost btn-sm" title="Back to your sessions">
+        <span aria-hidden="true">←</span> Sessions
+      </button>
+      <span class="bar-divider" aria-hidden="true"></span>
+      <span id="editor-language" class="badge"></span>
+      <button id="copy-invite" class="invite-chip" title="Copy invite code">
+        <span class="invite-label">Invite</span>
+        <code id="editor-invite"></code>
+        <svg class="invite-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1.6" fill="none"
+                stroke="currentColor" stroke-width="1.3"/>
+          <path d="M10.5 5.5V4a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 4v5A1.5 1.5 0 0 0 4 10.5h1.5"
+                fill="none" stroke="currentColor" stroke-width="1.3"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="participants" class="participants"></div>
+
+    <div class="app-bar-right">
+      <span id="revision" class="meta-pill" title="Canonical document revision">rev 0</span>
+      <span id="conn-status" class="status status-connecting">
+        <span class="status-dot"></span><span class="status-text">connecting</span>
+      </span>
+      <button id="run-btn" class="btn btn-primary btn-sm" disabled>
+        <svg class="run-icon" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 2l7 4-7 4z" fill="currentColor"/></svg>
+        <span class="btn-label">Run</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="editor-main">
+    <div id="editor-host" class="editor-host"></div>
+
+    <aside class="console">
+      <div class="console-head">
+        <h2 class="console-title">Output</h2>
+        <div id="exec-meta" class="console-meta"></div>
+      </div>
+      <div id="console-body" class="console-body">
+        <p class="console-empty">
+          Run the document to execute it in a sandboxed container.
+          Output is shared with everyone in the session.
+        </p>
+      </div>
     </aside>
   </main>
 </section>
 
-<script src="/app.js"></script>
+<script type="module" src="/app.js"></script>
 </body>
 </html>

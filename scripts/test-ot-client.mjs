@@ -1,5 +1,5 @@
 /**
- * Convergence test for the browser OT client (src/main/resources/static/app.js).
+ * Convergence test for the browser OT client (src/main/resources/static/ot.js).
  *
  * Simulates the server's canonical operation log (same transform rules as
  * OperationalTransformService) and N clients editing concurrently with
@@ -8,9 +8,7 @@
  *
  * Run: node scripts/test-ot-client.mjs
  */
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const { transformOp, applyOp } = require('../src/main/resources/static/app.js');
+import { transformOp, applyOp, rebase } from '../src/main/resources/static/ot.js';
 
 class Server {
   constructor() {
@@ -65,15 +63,13 @@ class Client {
       this.inflight = null; // ack
       return;
     }
-    let remote = { ...broadcast.op };
+    // Same rebase the browser client performs: pending local operations are
+    // transformed against the remote operation, and the remote operation
+    // against them, before it is applied locally.
     const pendings = [];
     if (this.inflight) pendings.push(this.inflight);
     pendings.push(...this.outbox);
-    const transformed = [];
-    for (const p of pendings) {
-      transformed.push(transformOp(p, remote));
-      remote = transformOp(remote, p);
-    }
+    const { pending: transformed, remote } = rebase(pendings, { ...broadcast.op });
     if (this.inflight) this.inflight = transformed.shift();
     this.outbox = transformed;
     this.doc = applyOp(this.doc, remote);
