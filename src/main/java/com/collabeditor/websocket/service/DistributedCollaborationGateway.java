@@ -285,7 +285,8 @@ public class DistributedCollaborationGateway {
                 payload.operationType(),
                 payload.position(),
                 payload.text(),
-                payload.length()
+                payload.length(),
+                payload.clientOperationId()
         ));
     }
 

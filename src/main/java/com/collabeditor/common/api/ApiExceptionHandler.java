@@ -7,16 +7,56 @@ import com.collabeditor.execution.service.ExecutionSourceService;
 import com.collabeditor.session.service.SessionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
     public record ErrorResponse(int status, String error, String message, Instant timestamp) {}
+
+    /**
+     * Error body for bean-validation failures.
+     *
+     * <p>Adds {@code fieldErrors} on top of the standard shape so a client can
+     * attach messages to the offending inputs. Without this handler these
+     * failures fall through to Spring's default body, which carries no
+     * {@code message} at all — the browser client could only ever show the
+     * literal string "Bad Request".
+     *
+     * @param fieldErrors field name to first validation message, e.g.
+     *                    {@code {"password": "size must be between 8 and 128"}}
+     */
+    public record ValidationErrorResponse(int status, String error, String message,
+                                          Map<String, String> fieldErrors, Instant timestamp) {}
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ValidationErrorResponse> handleValidationFailure(MethodArgumentNotValidException ex) {
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        for (FieldError fieldError : ex.getBindingResult().getFieldErrors()) {
+            String message = fieldError.getDefaultMessage();
+            fieldErrors.putIfAbsent(fieldError.getField(),
+                    message == null ? "is invalid" : message);
+        }
+
+        String summary = fieldErrors.entrySet().stream()
+                .map(entry -> entry.getKey() + " " + entry.getValue())
+                .collect(Collectors.joining("; "));
+
+        return ResponseEntity.badRequest().body(new ValidationErrorResponse(
+                400,
+                "Bad Request",
+                summary.isEmpty() ? "Request validation failed" : summary,
+                fieldErrors,
+                Instant.now()));
+    }
 
     @ExceptionHandler(AuthService.DuplicateEmailException.class)
     public ResponseEntity<ErrorResponse> handleDuplicateEmail(AuthService.DuplicateEmailException ex) {

@@ -6,6 +6,10 @@ services:
       POSTGRES_DB: collabeditor
       POSTGRES_USER: collabeditor
       POSTGRES_PASSWORD: collabeditor
+    # Published so the inner-loop path (app on the host, infrastructure in
+    # Compose) can reach the database at localhost:5432.
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +20,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Published for the same reason as postgres above.
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -27,12 +34,15 @@ services:
     ports:
       - "8080:8080"
     environment:
-      APP_DB_URL: ${APP_DB_URL}
-      APP_DB_USERNAME: ${APP_DB_USERNAME}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
-      APP_REDIS_HOST: ${APP_REDIS_HOST}
-      APP_REDIS_PORT: ${APP_REDIS_PORT}
-      APP_JWT_SECRET: ${APP_JWT_SECRET}
+      # Everything except the signing secret defaults to the values the
+      # sibling containers already use, so a fresh clone only has to supply
+      # APP_JWT_SECRET. The app refuses to start if that is missing or short.
+      APP_DB_URL: ${APP_DB_URL:-jdbc:postgresql://postgres:5432/collabeditor}
+      APP_DB_USERNAME: ${APP_DB_USERNAME:-collabeditor}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-collabeditor}
+      APP_REDIS_HOST: ${APP_REDIS_HOST:-redis}
+      APP_REDIS_PORT: ${APP_REDIS_PORT:-6379}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?set APP_JWT_SECRET in .env (min 32 chars)}
       # docker-java auto-discovers the socket via DOCKER_HOST
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:

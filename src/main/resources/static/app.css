@@ -61,6 +61,7 @@ code { font-family: var(--mono); }
 }
 .pill.ok { color: var(--green); border-color: var(--green); }
 .pill.warn { color: var(--amber); border-color: var(--amber); }
+.pill.err { color: var(--red); border-color: var(--red); }
 .pill.lang { color: var(--accent); border-color: var(--accent); }
 
 .chip {

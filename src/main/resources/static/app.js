@@ -97,11 +97,20 @@ const state = {
   doc: '',
   inflight: null,     // op sent, awaiting ack
   inflightId: null,
+  // clientOperationIds this connection authored and has not yet seen echoed
+  // back. Operations are recognised as our own by id, never by author: the
+  // same user may have two tabs in one room, and each must apply the other's
+  // operations rather than discard them.
+  ownOperationIds: new Set(),
   outbox: [],         // local ops not yet sent
   participants: new Map(),
   reconnectDelay: 1000,
+  reconnectAttempts: 0,
+  connectedThisAttempt: false,
   intentionalClose: false,
 };
+
+const MAX_RECONNECT_ATTEMPTS = 6;
 
 /* ---------------- Tiny DOM helpers ---------------- */
 
@@ -216,8 +225,11 @@ function enterSession(session) {
   state.doc = '';
   state.inflight = null;
   state.inflightId = null;
+  state.ownOperationIds.clear();
   state.outbox = [];
   state.participants = new Map();
+  state.reconnectDelay = 1000;
+  state.reconnectAttempts = 0;
   state.intentionalClose = false;
   $('editor-invite').textContent = session.inviteCode;
   $('editor-language').textContent = session.language;
@@ -249,11 +261,14 @@ function connect() {
   const url = `${proto}://${location.host}/ws/sessions/${state.session.sessionId}` +
               `?access_token=${encodeURIComponent(state.token)}`;
   setConnStatus('connecting…', 'warn');
+  state.connectedThisAttempt = false;
   const ws = new WebSocket(url);
   state.ws = ws;
 
   ws.onopen = () => {
+    state.connectedThisAttempt = true;
     state.reconnectDelay = 1000;
+    state.reconnectAttempts = 0;
     setConnStatus('live', 'ok');
   };
 
@@ -264,11 +279,61 @@ function connect() {
 
   ws.onclose = () => {
     if (state.intentionalClose || !state.session) return;
-    setConnStatus('reconnecting…', 'warn');
     editor().disabled = true;
-    setTimeout(() => { if (state.session) connect(); }, state.reconnectDelay);
-    state.reconnectDelay = Math.min(state.reconnectDelay * 2, 10000);
+    scheduleReconnect();
   };
+}
+
+/* Reconnect with backoff, but only while reconnecting can plausibly help.
+ *
+ * A browser cannot read the HTTP status of a failed WebSocket handshake, so a
+ * dead token and a dropped network look identical from here. When a connection
+ * fails before it ever opened, probe the REST API with the same token: a 401
+ * means the credentials are the problem and no number of retries will fix it. */
+async function scheduleReconnect() {
+  if (!state.connectedThisAttempt && await tokenIsRejected()) {
+    endSessionWithAuthError();
+    return;
+  }
+
+  state.reconnectAttempts += 1;
+  if (state.reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+    setConnStatus('offline', 'err');
+    toast('Lost connection to the session. Returning to your sessions.');
+    returnToLobby();
+    return;
+  }
+
+  setConnStatus('reconnecting…', 'warn');
+  setTimeout(() => { if (state.session) connect(); }, state.reconnectDelay);
+  state.reconnectDelay = Math.min(state.reconnectDelay * 2, 10000);
+}
+
+async function tokenIsRejected() {
+  try {
+    const res = await fetch('/api/sessions', {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    return res.status === 401;
+  } catch {
+    return false; // network error, not an auth error — keep retrying
+  }
+}
+
+function endSessionWithAuthError() {
+  state.intentionalClose = true;
+  state.session = null;
+  state.token = null;
+  setConnStatus('signed out', 'err');
+  toast('Your session expired — please sign in again.');
+  show('view-auth');
+}
+
+function returnToLobby() {
+  state.intentionalClose = true;
+  state.session = null;
+  refreshSessions().catch(() => {});
+  show('view-lobby');
 }
 
 function handleServerMessage(type, payload) {
@@ -279,6 +344,7 @@ function handleServerMessage(type, payload) {
       state.revision = payload.revision;
       state.inflight = null;
       state.inflightId = null;
+      state.ownOperationIds.clear();
       state.outbox = [];
       editor().value = state.doc;
       editor().disabled = false;
@@ -300,7 +366,12 @@ function handleServerMessage(type, payload) {
     case 'operation_applied': {
       state.revision = Math.max(state.revision, payload.revision);
       $('revision').textContent = `rev ${state.revision}`;
-      if (payload.userId === state.userId) break; // own op, text already applied
+      // Skip the echo of an operation this connection sent — matched by
+      // operation id, not by author, so a second tab signed in as the same
+      // user still applies its counterpart's edits. The id is consumed on
+      // arrival, which also makes this correct if the ack races ahead of the
+      // broadcast.
+      if (payload.clientOperationId && state.ownOperationIds.delete(payload.clientOperationId)) break;
       applyRemoteOperation(payload);
       break;
     }
@@ -370,6 +441,7 @@ function sendNextOp() {
   if (isNoop(op)) { sendNextOp(); return; }
   state.inflight = op;
   state.inflightId = crypto.randomUUID();
+  state.ownOperationIds.add(state.inflightId);
   state.ws.send(JSON.stringify({
     type: 'submit_operation',
     payload: {
@@ -428,6 +500,20 @@ function sendPresence() {
   }, 400);
 }
 
+/* The async Clipboard API is unavailable outside secure contexts and can be
+ * denied by permission policy, so the promise must be handled — an unhandled
+ * rejection here used to log an error while the UI claimed success. */
+async function copyInvite() {
+  const code = state.session?.inviteCode;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    toast('Invite code copied', false);
+  } catch {
+    toast(`Copy failed — the invite code is ${code}`);
+  }
+}
+
 function renderParticipants() {
   const el = $('participants');
   el.innerHTML = '';
@@ -455,16 +541,23 @@ async function runCode() {
   }
 }
 
+const TERMINAL_EXECUTION_STATUSES = ['COMPLETED', 'FAILED', 'TIMED_OUT', 'REJECTED', 'ERROR'];
+
 function renderExecution(payload) {
   const status = payload.status || '';
+  const who = payload.requestedByEmail
+    ? ` · ${payload.requestedByUserId === state.userId ? 'you' : payload.requestedByEmail}`
+    : '';
   $('exec-status').textContent = status.toLowerCase() +
-    (payload.exitCode != null ? ` (exit ${payload.exitCode})` : '');
+    (payload.exitCode != null ? ` (exit ${payload.exitCode})` : '') + who;
   const parts = [];
   if (payload.stdout) parts.push(payload.stdout);
   if (payload.stderr) parts.push(`--- stderr ---\n${payload.stderr}`);
   if (payload.message && !payload.stdout && !payload.stderr) parts.push(payload.message);
   $('exec-output').textContent = parts.join('\n');
-  if (['COMPLETED', 'FAILED', 'TIMED_OUT', 'ERROR'].includes(status)) {
+  // REJECTED belongs here too: a cooldown rejection arriving over the socket
+  // must release the Run button, not leave it stuck disabled.
+  if (TERMINAL_EXECUTION_STATUSES.includes(status)) {
     $('run-btn').disabled = false;
   }
 }
@@ -493,10 +586,7 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
   $('refresh-btn').addEventListener('click', guard(refreshSessions, $('refresh-btn')));
   $('leave-btn').addEventListener('click', () => leaveSession());
   $('run-btn').addEventListener('click', () => runCode());
-  $('copy-invite').addEventListener('click', () => {
-    navigator.clipboard.writeText(state.session.inviteCode);
-    toast('Invite code copied', false);
-  });
+  $('copy-invite').addEventListener('click', () => { copyInvite(); });
   editor().addEventListener('input', onEditorInput);
   editor().addEventListener('keydown', (e) => {
     if (e.key === 'Tab') { // insert spaces instead of losing focus
