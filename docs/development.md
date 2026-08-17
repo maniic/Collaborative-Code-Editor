@@ -78,6 +78,10 @@ transform rules ever drift apart.
 The client is plain HTML, CSS, and ES modules under
 `src/main/resources/static/` — no npm install, no bundler, no framework.
 
+The root `package.json` exists only to declare `"type": "module"`, so Node
+parses `ot.js` and the harness as ES modules without guessing. It has no
+dependencies; `npm install` is never required.
+
 | File | Role |
 |---|---|
 | `index.html` | Markup for the auth, lobby, and editor views |
