@@ -8,28 +8,13 @@
 [![Spring Boot 3](https://img.shields.io/badge/spring%20boot-3.3-6db33f.svg)](https://spring.io/projects/spring-boot)
 
 <!--
-DEMO GIF — record this and replace the image below with docs/images/demo.gif
-
-  Capture at 1440x760, 2x scale if your recorder supports it, ~20 seconds,
-  no audio, and export at 12-15 fps so the file stays under ~8 MB.
-
-  Shot list, in one continuous take with two browser windows side by side:
-    0:00  Two windows already signed in as different accounts, same session
-          open, editor empty.
-    0:02  Left window types a short Python function. Right window shows the
-          text arriving live, with the left user's coloured caret and name
-          label following along.
-    0:08  Both windows type at once on different lines, so both carets are
-          visible moving simultaneously. This is the money shot — hold it
-          long enough to read.
-    0:13  Right window presses Run. Both windows show the status pill go
-          RUNNING then COMPLETED, with stdout appearing in both consoles.
-    0:18  Rest on the finished state showing "by <name>" attribution.
-
-  Then: git add docs/images/demo.gif and swap the <img> below for it.
+Recorded from the running stack with two independent browser sessions:
+scripts are in the repository history. To re-record after a UI change,
+capture both browsers at 960x640, crop to 452px tall, stack them side by
+side, and export at 10 fps so the file stays around 1.5 MB.
 -->
 
-![Two participants editing the same document, with live remote cursors](docs/images/02-collaborative-editing.png)
+![Two participants editing one document live, then running it in a sandbox](docs/images/demo.gif)
 
 Multiple people open the same document and type at once. Every edit is
 transformed server-side against the canonical operation log, so all
@@ -100,6 +85,10 @@ the result is broadcast to every participant with timing and attribution:
 | Sign in | Session lobby |
 |---|---|
 | ![Sign in screen](docs/images/01-sign-in.png) | ![Session lobby listing sessions with language badges](docs/images/04-sessions.png) |
+
+Two participants in one document, each seeing the other's caret and selection:
+
+![Collaborative editing with remote cursors](docs/images/02-collaborative-editing.png)
 
 ---
 
