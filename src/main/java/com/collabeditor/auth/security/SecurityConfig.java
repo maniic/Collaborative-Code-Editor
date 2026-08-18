@@ -40,12 +40,16 @@ public class SecurityConfig {
                     "/api/auth/refresh",
                     "/actuator/health",
                     "/ws/**",
-                    // Static web client (src/main/resources/static)
+                    // Static web client (src/main/resources/static). Matched by
+                    // extension rather than by filename so adding an asset does
+                    // not silently 401 — every REST route lives under /api.
                     "/",
                     "/index.html",
-                    "/app.js",
-                    "/app.css",
-                    "/favicon.ico"
+                    "/*.js",
+                    "/*.css",
+                    "/*.svg",
+                    "/*.ico",
+                    "/vendor/**"
                 ).permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

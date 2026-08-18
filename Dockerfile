@@ -1,7 +1,11 @@
 # ──────────────────────────────────────────────────────────────
 # Stage 1: Build the Spring Boot jar using the Gradle wrapper
+#
+# Must be a JDK 21 image: build.gradle.kts pins the Gradle
+# toolchain to Java 21, so an older JDK here would force Gradle
+# to download a second JDK mid-build.
 # ──────────────────────────────────────────────────────────────
-FROM eclipse-temurin:17-jdk-jammy AS build
+FROM eclipse-temurin:21-jdk-jammy AS build
 
 WORKDIR /workspace
 
@@ -18,8 +22,12 @@ RUN ./gradlew --no-daemon bootJar
 
 # ──────────────────────────────────────────────────────────────
 # Stage 2: Lean runtime image
+#
+# Must match the toolchain major version from stage 1. The jar is
+# emitted at class-file version 65, which only a Java 21+ runtime
+# can load.
 # ──────────────────────────────────────────────────────────────
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:21-jre-jammy AS runtime
 
 # Install curl so Compose healthchecks can use:
 #   curl -f http://localhost:8080/actuator/health

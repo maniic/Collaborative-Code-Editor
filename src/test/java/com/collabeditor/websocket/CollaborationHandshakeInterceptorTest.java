@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.socket.WebSocketHandler;
@@ -231,6 +232,109 @@ class CollaborationHandshakeInterceptorTest {
             boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
 
             assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("accepted handshake leaves the response status untouched")
+        void acceptedHandshakeDoesNotSetStatus() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer valid-token");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+            when(jwtTokenService.parseToken("valid-token")).thenReturn(Optional.of(claims));
+            when(jwtTokenService.extractIdentity(claims)).thenReturn(Optional.of(new TokenIdentity(userId, email)));
+
+            SessionParticipantEntity participant = new SessionParticipantEntity(sessionId, userId, "MEMBER", "ACTIVE");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(participant));
+
+            interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            verify(response, never()).setStatusCode(any());
+        }
+    }
+
+    /**
+     * Regression guard for the rejected-handshake status.
+     *
+     * <p>Returning {@code false} without setting a status leaves the response at
+     * 200, which reaches the browser as
+     * {@code "Error during WebSocket handshake: Unexpected response code: 200"}
+     * and gives the client no way to tell a dead token from a lost membership.
+     */
+    @Nested
+    @DisplayName("Sets an explicit status when rejecting")
+    class RejectionStatus {
+
+        @Test
+        @DisplayName("missing token rejects with 401")
+        void missingTokenSets401() throws Exception {
+            when(request.getHeaders()).thenReturn(new HttpHeaders());
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+            verify(response).setStatusCode(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("invalid jwt rejects with 401")
+        void invalidJwtSets401() throws Exception {
+            when(request.getHeaders()).thenReturn(new HttpHeaders());
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId + "?access_token=bad"));
+            when(jwtTokenService.parseToken("bad")).thenReturn(Optional.empty());
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+            verify(response).setStatusCode(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("non-participant rejects with 403")
+        void nonParticipantSets403() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer valid-token");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+            when(jwtTokenService.parseToken("valid-token")).thenReturn(Optional.of(claims));
+            when(jwtTokenService.extractIdentity(claims)).thenReturn(Optional.of(new TokenIdentity(userId, email)));
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.empty());
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+            verify(response).setStatusCode(HttpStatus.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("removed participant rejects with 403")
+        void removedParticipantSets403() throws Exception {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer valid-token");
+            when(request.getHeaders()).thenReturn(headers);
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/" + sessionId));
+            when(jwtTokenService.parseToken("valid-token")).thenReturn(Optional.of(claims));
+            when(jwtTokenService.extractIdentity(claims)).thenReturn(Optional.of(new TokenIdentity(userId, email)));
+
+            SessionParticipantEntity left = new SessionParticipantEntity(sessionId, userId, "MEMBER", "LEFT");
+            when(participantRepository.findBySessionIdAndUserId(sessionId, userId)).thenReturn(Optional.of(left));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+            verify(response).setStatusCode(HttpStatus.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("malformed session path rejects with 400")
+        void malformedPathSets400() throws Exception {
+            when(request.getURI()).thenReturn(new URI("/ws/sessions/not-a-uuid"));
+
+            boolean result = interceptor.beforeHandshake(request, response, wsHandler, attributes);
+
+            assertThat(result).isFalse();
+            verify(response).setStatusCode(HttpStatus.BAD_REQUEST);
         }
     }
 }

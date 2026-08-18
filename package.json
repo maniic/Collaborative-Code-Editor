@@ -1,0 +1,9 @@
+{
+  "name": "collaborative-code-editor-client",
+  "private": true,
+  "type": "module",
+  "description": "Declares the browser client and scripts/ as ES modules so Node does not have to guess. There are no dependencies and no build step - npm install is never required.",
+  "scripts": {
+    "test:ot": "node scripts/test-ot-client.mjs"
+  }
+}

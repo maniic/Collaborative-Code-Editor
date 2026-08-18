@@ -8,6 +8,7 @@ import io.jsonwebtoken.Claims;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.stereotype.Component;
@@ -51,7 +52,7 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
         UUID sessionId = extractSessionId(request.getURI());
         if (sessionId == null) {
             log.debug("WebSocket handshake rejected: invalid session path");
-            return false;
+            return reject(response, HttpStatus.BAD_REQUEST);
         }
 
         // Extract and validate bearer token. Browsers cannot set headers on
@@ -63,19 +64,19 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
         }
         if (token == null) {
             log.debug("WebSocket handshake rejected: missing bearer token");
-            return false;
+            return reject(response, HttpStatus.UNAUTHORIZED);
         }
 
         Optional<Claims> claimsOpt = jwtTokenService.parseToken(token);
         if (claimsOpt.isEmpty()) {
             log.debug("WebSocket handshake rejected: invalid jwt");
-            return false;
+            return reject(response, HttpStatus.UNAUTHORIZED);
         }
 
         Optional<TokenIdentity> identityOpt = jwtTokenService.extractIdentity(claimsOpt.get());
         if (identityOpt.isEmpty()) {
             log.debug("WebSocket handshake rejected: invalid identity claims");
-            return false;
+            return reject(response, HttpStatus.UNAUTHORIZED);
         }
 
         TokenIdentity identity = identityOpt.get();
@@ -86,7 +87,7 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
         if (participantOpt.isEmpty() || !"ACTIVE".equals(participantOpt.get().getStatus())) {
             log.debug("WebSocket handshake rejected: non-active participant userId={} sessionId={}",
                     identity.userId(), sessionId);
-            return false;
+            return reject(response, HttpStatus.FORBIDDEN);
         }
 
         // Store identity on socket attributes for handler use
@@ -102,6 +103,22 @@ public class CollaborationHandshakeInterceptor implements HandshakeInterceptor {
     public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                 WebSocketHandler wsHandler, Exception exception) {
         // No-op
+    }
+
+    /**
+     * Aborts the handshake with an explicit status.
+     *
+     * <p>Returning {@code false} on its own leaves the response at its default
+     * 200, which reaches the browser as the useless
+     * {@code "Error during WebSocket handshake: Unexpected response code: 200"}.
+     * A real status lets the client tell an expired token (401) apart from a
+     * revoked room membership (403) and stop retrying when retrying cannot help.
+     *
+     * @return always {@code false}, so callers can {@code return reject(...)}
+     */
+    private boolean reject(ServerHttpResponse response, HttpStatus status) {
+        response.setStatusCode(status);
+        return false;
     }
 
     private String extractBearerToken(HttpHeaders headers) {

@@ -207,6 +207,39 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * Regression guard: bean-validation failures must carry a human-readable
+     * message and per-field detail. Without an explicit handler these fell
+     * through to Spring's default error body, which has no {@code message}
+     * field at all — leaving the browser client able to show only the literal
+     * string "Bad Request".
+     */
+    @Test
+    void shouldReturnPerFieldDetailForInvalidRegisterPayload() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("email", "not-an-email", "password", "short"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").isNotEmpty())
+                .andExpect(jsonPath("$.fieldErrors.email").isNotEmpty())
+                .andExpect(jsonPath("$.fieldErrors.password").isNotEmpty());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void shouldReportOnlyTheOffendingFieldWhenOneFieldIsInvalid() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("email", "valid@example.com", "password", "short"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.password").isNotEmpty())
+                .andExpect(jsonPath("$.fieldErrors.email").doesNotExist());
+    }
+
     @TestConfiguration
     static class AuthControllerTestConfig {
 

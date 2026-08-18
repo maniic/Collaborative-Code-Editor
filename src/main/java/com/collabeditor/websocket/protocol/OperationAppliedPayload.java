@@ -6,12 +6,20 @@ import java.util.UUID;
  * Payload for {@code operation_applied}: broadcast to all session participants
  * (including the sender) after a canonical operation is accepted.
  *
- * @param userId        the author of the operation
- * @param revision      the canonical revision assigned to the operation
- * @param operationType "INSERT" or "DELETE"
- * @param position      character index where the canonical operation applies
- * @param text          the inserted text (for INSERT operations, null for DELETE)
- * @param length        the delete length (for DELETE operations, null for INSERT)
+ * <p>{@code clientOperationId} is what lets a client recognise the echo of its
+ * own operation. Author identity is not sufficient: the same user may hold two
+ * connections to one room (two browser tabs), and each must apply the other's
+ * operations rather than discard them as its own.
+ *
+ * @param userId            the author of the operation
+ * @param revision          the canonical revision assigned to the operation
+ * @param operationType     "INSERT" or "DELETE"
+ * @param position          character index where the canonical operation applies
+ * @param text              the inserted text (for INSERT operations, null for DELETE)
+ * @param length            the delete length (for DELETE operations, null for INSERT)
+ * @param clientOperationId the submitting client's operation id, echoed back so a
+ *                          client can distinguish its own operation from one sent
+ *                          by another connection of the same user
  */
 public record OperationAppliedPayload(
         UUID userId,
@@ -19,6 +27,7 @@ public record OperationAppliedPayload(
         String operationType,
         int position,
         String text,
-        Integer length
+        Integer length,
+        String clientOperationId
 ) {
 }

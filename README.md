@@ -1,511 +1,127 @@
 # Collaborative Code Editor
 
-A real-time collaborative code editor. Multiple users join coding sessions via WebSocket, edit the same document simultaneously with conflict-free resolution using Operational Transform, and execute code together in Docker-sandboxed containers. Ships with a zero-dependency browser client served by the backend itself.
+**Real-time collaborative code editing with server-authoritative Operational Transform and Docker-sandboxed execution.**
 
-Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker.
+[![CI](https://github.com/maniic/Collaborative-Code-Editor/actions/workflows/ci.yml/badge.svg)](https://github.com/maniic/Collaborative-Code-Editor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Java 21](https://img.shields.io/badge/java-21-orange.svg)](https://adoptium.net/temurin/releases/?version=21)
+[![Spring Boot 3](https://img.shields.io/badge/spring%20boot-3.3-6db33f.svg)](https://spring.io/projects/spring-boot)
+
+<!--
+Recorded from the running stack with two independent browser sessions:
+scripts are in the repository history. To re-record after a UI change,
+capture both browsers at 960x640, crop to 452px tall, stack them side by
+side, and export at 10 fps so the file stays around 1.5 MB.
+-->
+
+![Two participants editing one document live, then running it in a sandbox](docs/images/demo.gif)
+
+Multiple people open the same document and type at once. Every edit is
+transformed server-side against the canonical operation log, so all
+participants converge on an identical document no matter what order their
+keystrokes arrive in. Anyone can run the shared document in a locked-down
+container and everyone sees the output.
 
 ---
 
-## Prerequisites
+## What makes it interesting
 
-- **Java 21** (Eclipse Temurin recommended; the Gradle toolchain resolver will auto-provision if missing)
-- **Docker 24+** with a running daemon
-- **Docker Compose v2** (`docker compose` subcommand, not `docker-compose` v1)
-- **Docker socket accessible** at `/var/run/docker.sock` (or override via `DOCKER_SOCKET_PATH` — see Quickstart)
+- **Server-authoritative Operational Transform, written from scratch.** No OT
+  library. Every submitted operation is transformed against the canonical
+  operations committed after its base revision, with a deterministic
+  same-position tie-break and TP1-preserving insert/delete handling. Proven by
+  a property suite on the server and 500 randomized multi-client convergence
+  scenarios against the browser engine.
 
-The app container mounts the Docker daemon socket so it can launch execution sandboxes. For Docker Desktop, Linux, and Colima Compose runs, keep `DOCKER_SOCKET_PATH=/var/run/docker.sock`. Do not point it at the host-side Colima client socket under `~/.colima/...`.
+- **Snapshot-plus-replay recovery.** Document state is checkpointed every 50
+  operations. A room that is not cached on the instance serving a connection —
+  after a restart, an eviction, or because a second instance took the request —
+  rebuilds from the latest snapshot plus the operations after it, without
+  discarding history.
+
+- **Multi-instance coordination over Redis.** Atomic `INCR` revision counters
+  keep revisions globally monotonic, per-session `SET NX PX` locks serialize
+  the apply path, and pub/sub relays every committed operation to sibling
+  instances. A detected relay gap forces a resync instead of allowing silent
+  divergence.
+
+- **Docker-sandboxed execution.** Python and Java run in containers pinned to
+  256 MB, 0.5 vCPU, a 10-second timeout, a read-only root filesystem, tmpfs
+  scratch space, no network, and a non-root user. Output streams back to every
+  participant over the same WebSocket.
+
+Built with Java 21, Spring Boot 3, PostgreSQL, Redis, and Docker, plus a
+zero-build browser client served by the backend itself.
 
 ---
 
 ## Quickstart
 
-### Full-stack Compose (canonical path)
-
-**1. Prepare your environment file.**
-
-`.env.example` ships with placeholder values. Fill in the required values (at minimum `APP_JWT_SECRET`) and use it directly, or copy it to `.env` and edit there:
-
-```
-APP_DB_URL=jdbc:postgresql://postgres:5432/collabeditor
-APP_DB_USERNAME=collabeditor
-APP_DB_PASSWORD=collabeditor
-APP_REDIS_HOST=redis
-APP_REDIS_PORT=6379
-APP_JWT_SECRET=<at-least-32-character-random-secret>
-```
-
-Optional override only if your Docker daemon exposes a different Unix socket path inside its own host or VM:
-
-```
-DOCKER_SOCKET_PATH=/var/run/docker.sock
-```
-
-**2. Build and start the stack.**
+Requires Docker with Compose v2 and a running daemon.
 
 ```bash
-docker compose --env-file .env.example up --build
+git clone https://github.com/maniic/Collaborative-Code-Editor.git
+cd Collaborative-Code-Editor
+cp .env.example .env && echo "APP_JWT_SECRET=$(openssl rand -base64 48)" >> .env
+docker compose up --build
 ```
 
-This starts PostgreSQL, Redis, and the Spring Boot app. Flyway migrations run automatically on startup.
+Then open **http://localhost:8080**. Create an account, start a session, and
+open the invite code in a second browser to watch edits merge live.
 
-**3. Confirm the app is healthy.**
-
-```bash
-curl http://localhost:8080/actuator/health
-```
-
-Expected response: `{"status":"UP"}`
-
-The app is ready to accept requests once health returns `UP`.
+`APP_JWT_SECRET` is the only value you have to supply — everything else
+defaults to the sibling containers. The stack is ready when
+`curl http://localhost:8080/actuator/health` returns `{"status":"UP"}`.
 
 ---
 
-### Inner-loop path (infrastructure only)
+## Screenshots
 
-For faster iteration during development, start only PostgreSQL and Redis with Compose and run the app locally with Gradle:
+Running the shared document in a sandbox — stdout and stderr are separated, and
+the result is broadcast to every participant with timing and attribution:
 
-```bash
-# Start only infrastructure
-docker compose up postgres redis
+![Sandboxed execution with output, timing, and attribution](docs/images/03-sandboxed-execution.png)
 
-# Run the app with local credentials
-APP_DB_URL=jdbc:postgresql://localhost:5432/collabeditor \
-APP_DB_USERNAME=collabeditor \
-APP_DB_PASSWORD=collabeditor \
-APP_REDIS_HOST=localhost \
-APP_REDIS_PORT=6379 \
-APP_JWT_SECRET=<your-secret> \
-./gradlew bootRun
-```
+| Sign in | Session lobby |
+|---|---|
+| ![Sign in screen](docs/images/01-sign-in.png) | ![Session lobby listing sessions with language badges](docs/images/04-sessions.png) |
 
-This skips the Docker image build and uses the Gradle toolchain-resolved JDK directly.
+Two participants in one document, each seeing the other's caret and selection:
+
+![Collaborative editing with remote cursors](docs/images/02-collaborative-editing.png)
 
 ---
 
-## Verification
-
-### Integration test suite
+## Verifying it
 
 ```bash
-./gradlew integrationTest
-```
-
-Runs all tests tagged `@Tag("integration")` using Testcontainers-backed infrastructure (real PostgreSQL and Redis in Docker). This is the canonical proof command. It covers:
-
-- Flyway schema bootstrapping and JPA validation against PostgreSQL
-- Durable OT operation persistence, snapshot creation, and snapshot-plus-replay recovery
-- Redis-backed cross-instance collaboration relay behavior
-- Docker-backed sandboxed Python and Java code execution
-
-All integration tests require Docker to be running locally (the same daemon used by the execution sandbox).
-
-### Full test suite
-
-```bash
-./gradlew test
-```
-
-Runs the complete test suite including unit tests, slice tests, and integration tests. Use this to confirm nothing is broken before committing.
-
----
-
-## Web Client
-
-Once the stack is up, open **http://localhost:8080/** for the built-in browser client (`src/main/resources/static/` — plain HTML/CSS/JS, no build step):
-
-- **Auth + lobby** — register/sign in, create a Python or Java session, or join one with an 8-character invite code.
-- **Live collaborative editing** — the client mirrors the server's OT transform rules (including the same-position insert tie-break and insert-annulled-by-delete rule), keeping an inflight/outbox pipeline so concurrent edits from every participant converge. Open the same session in two browser windows to watch edits merge in real time.
-- **Shared execution** — the ▶ Run button enqueues the current document into the Docker sandbox; status, stdout, and stderr stream back to *all* participants via `execution_updated` events.
-
-The client-side OT engine has its own convergence harness:
-
-```bash
+./gradlew test              # 254 tests: unit, slice, and integration
+./gradlew integrationTest   # 42 integration tests against real containers
 node scripts/test-ot-client.mjs
 ```
 
-It simulates the server's canonical log plus 2-4 browser clients with randomized concurrent edits and message interleavings across 500 seeded scenarios, asserting every client converges to the server document.
+The integration suites bring up real PostgreSQL, Redis, and execution sandboxes
+via Testcontainers — no host services required, only a Docker daemon.
 
-> Browsers cannot set an `Authorization` header on WebSocket handshakes, so the handshake interceptor also accepts the JWT as an `access_token` query parameter (RFC 6750 §2.3).
-
----
-
-## REST API
-
-All REST endpoints require a bearer token (`Authorization: Bearer <access_token>`) except `/api/auth/register` and `/api/auth/login`. Tokens are issued at login and rotated at refresh.
-
-### Auth
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/auth/register` | None | Register a new user |
-| `POST` | `/api/auth/login` | None | Login; returns access token + sets refresh cookie |
-| `POST` | `/api/auth/refresh` | Refresh cookie | Rotate refresh token; returns new access token |
-
-**Register:**
-
-```http
-POST /api/auth/register
-Content-Type: application/json
-
-{"email": "user@example.com", "password": "secret123"}
-```
-
-Response: `201 Created` (no body)
-
-**Login:**
-
-```http
-POST /api/auth/login
-Content-Type: application/json
-
-{"email": "user@example.com", "password": "secret123"}
-```
-
-Response: `200 OK`
-
-```json
-{
-  "accessToken": "<jwt>",
-  "expiresInSeconds": 900,
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "user@example.com"
-}
-```
-
-A `ccd_refresh_token` HttpOnly secure cookie is also set. The refresh token is valid for 30 days and rotates on each use.
-
-**Refresh:**
-
-```http
-POST /api/auth/refresh
-Cookie: ccd_refresh_token=<token>
-```
-
-Response: same shape as login. A new `ccd_refresh_token` cookie is set.
+The convergence harness simulates the server's canonical log plus 2-4 browser
+clients making randomized concurrent edits with arbitrary message interleaving,
+across 500 seeded scenarios, and asserts every client ends up with the server's
+document. It imports the real client engine, so it fails if the browser and
+server transform rules ever drift apart.
 
 ---
 
-### Sessions
+## Documentation
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/sessions` | Bearer | Create a session; returns invite code |
-| `GET` | `/api/sessions` | Bearer | List sessions the authenticated user participates in |
-| `POST` | `/api/sessions/join` | Bearer | Join a session by invite code |
-| `POST` | `/api/sessions/{sessionId}/leave` | Bearer | Leave a session |
-
-**Create session:**
-
-```http
-POST /api/sessions
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{"language": "PYTHON"}
-```
-
-Response: `201 Created`
-
-```json
-{
-  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
-  "inviteCode": "AB3CDEF7",
-  "language": "PYTHON",
-  "ownerUserId": "550e8400-e29b-41d4-a716-446655440000",
-  "participantCap": 12,
-  "activeParticipants": 1,
-  "createdAt": "2026-03-30T03:00:00Z"
-}
-```
-
-Session language is **immutable** after creation. Supported values: `PYTHON`, `JAVA`.
-
-**Join session:**
-
-```http
-POST /api/sessions/join
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{"inviteCode": "AB3CDEF7"}
-```
-
-Invite codes are case-normalized and use the charset `[A-Z2-9]` (excludes 0, 1, I, O). Join is idempotent for already-active participants.
+| | |
+|---|---|
+| [Architecture](docs/architecture.md) | Component diagram, subsystem map, and the reasoning behind the OT, recovery, coordination, and sandboxing decisions |
+| [REST API](docs/api.md) | Auth, session, and execution endpoints with request/response shapes |
+| [WebSocket protocol](docs/websocket-protocol.md) | Handshake auth and the full client/server event contract |
+| [Development](docs/development.md) | Inner-loop setup, test layout, client structure, and configuration |
 
 ---
 
-### Execution
+## License
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `POST` | `/api/sessions/{sessionId}/executions` | Bearer | Enqueue code execution for the session |
-
-```http
-POST /api/sessions/550e8400-e29b-41d4-a716-446655440000/executions
-Authorization: Bearer <token>
-```
-
-Response: `202 Accepted`
-
-```json
-{
-  "executionId": "...",
-  "sessionId": "550e8400-e29b-41d4-a716-446655440000",
-  "language": "PYTHON",
-  "sourceRevision": 42,
-  "status": "QUEUED"
-}
-```
-
-The execution captures the current canonical room document and language at enqueue time. Results are delivered asynchronously via the WebSocket `execution_updated` event. A per-session cooldown of 5 seconds applies between executions.
-
-**Java execution constraint:** source must be a single-file package-less Main entrypoint (i.e., `class Main { public static void main(String[] args) {...} }`) with no package declaration.
-
----
-
-## WebSocket Protocol
-
-Connect to the collaboration WebSocket after joining a session via REST.
-
-**Endpoint:** `ws://localhost:8080/ws/sessions/{sessionId}`
-
-Authentication is enforced at handshake time via the `Authorization` header:
-
-```http
-Authorization: Bearer <access_token>
-```
-
-The user must be an active participant in the session (joined via `/api/sessions/join` or as the session owner). Messages are JSON.
-
----
-
-### Client to Server
-
-**`submit_operation`** — Submit a document edit.
-
-```json
-{
-  "type": "submit_operation",
-  "payload": {
-    "clientOperationId": "op-123",
-    "baseRevision": 42,
-    "operationType": "INSERT",
-    "position": 10,
-    "text": "hello",
-    "length": null
-  }
-}
-```
-
-Or a delete:
-
-```json
-{
-  "type": "submit_operation",
-  "payload": {
-    "clientOperationId": "op-124",
-    "baseRevision": 42,
-    "operationType": "DELETE",
-    "position": 5,
-    "text": null,
-    "length": 3
-  }
-}
-```
-
-**`update_presence`** — Broadcast cursor/selection position.
-
-```json
-{
-  "type": "update_presence",
-  "payload": {
-    "selection": {
-      "start": 10,
-      "end": 15
-    }
-  }
-}
-```
-
----
-
-### Server to Client
-
-| Event | When sent |
-|-------|-----------|
-| `document_sync` | On WebSocket connect — delivers the current document state and revision |
-| `operation_ack` | After the server accepts and commits the submitting client's operation |
-| `operation_applied` | After the server commits any operation — broadcast to all connected clients in the room |
-| `operation_error` | When the server rejects a submitted operation (e.g., invalid base revision) |
-| `resync_required` | When the server detects a gap that cannot be resolved; client should reconnect |
-| `participant_joined` | When a participant connects to the WebSocket room |
-| `participant_left` | When a participant disconnects from the WebSocket room |
-| `presence_updated` | When a participant broadcasts a cursor/selection update |
-| `execution_updated` | When an execution transitions state: `QUEUED → RUNNING → COMPLETED / FAILED` |
-
-**`document_sync` example:**
-
-```json
-{
-  "type": "document_sync",
-  "payload": {
-    "document": "def hello():\n    print('Hello')\n",
-    "revision": 42,
-    "participants": [
-      {
-        "userId": "550e8400-e29b-41d4-a716-446655440000",
-        "email": "user@example.com"
-      }
-    ]
-  }
-}
-```
-
-**`execution_updated` example:**
-
-```json
-{
-  "type": "execution_updated",
-  "payload": {
-    "executionId": "7da45499-805f-4d6d-b909-128457bb0261",
-    "requestedByUserId": "550e8400-e29b-41d4-a716-446655440000",
-    "requestedByEmail": "user@example.com",
-    "language": "PYTHON",
-    "sourceRevision": 42,
-    "status": "COMPLETED",
-    "stdout": "Hello\n",
-    "stderr": "",
-    "exitCode": 0,
-    "createdAt": "2026-03-30T03:00:00Z",
-    "startedAt": "2026-03-30T03:00:01Z",
-    "finishedAt": "2026-03-30T03:00:02Z",
-    "message": "Execution completed successfully."
-  }
-}
-```
-
----
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Client["WebSocket / REST Client"]
-
-    subgraph App["Spring Boot App (1-3 instances)"]
-        Auth["auth\n(JWT, refresh tokens)"]
-        Session["session\n(lifecycle, invite codes)"]
-        WS["websocket\n(collaboration handler)"]
-        OT["ot\n(transform engine)"]
-        Snapshot["snapshot\n(periodic state checkpoints)"]
-        Redis_pkg["redis\n(pub/sub relay, locks, counters)"]
-        Execution["execution\n(enqueue, sandbox runner)"]
-    end
-
-    PG[("PostgreSQL\n(users, sessions, operations, snapshots, executions)")]
-    Redis[("Redis\n(revision counters, distributed locks,\ncross-instance relay pub/sub)")]
-    Docker["Docker Daemon\n(sandboxed execution containers)"]
-
-    Client -->|"REST (bearer token)"| Auth
-    Client -->|"REST (bearer token)"| Session
-    Client -->|"REST (bearer token)"| Execution
-    Client -->|"WebSocket (JWT handshake)"| WS
-
-    WS --> OT
-    OT --> Snapshot
-    OT --> Redis_pkg
-    Redis_pkg -->|"pub/sub relay"| Redis
-
-    Auth --> PG
-    Session --> PG
-    OT --> PG
-    Snapshot --> PG
-    Execution --> PG
-
-    Execution -->|"docker-java API"| Docker
-    Execution --> Redis_pkg
-```
-
-### Subsystems
-
-| Package | Responsibility |
-|---------|----------------|
-| `auth` | User registration, password hashing, JWT access token issuance, refresh token rotation with reuse detection |
-| `session` | Session lifecycle: create, join (invite code), leave, owner transfer, cleanup scheduler |
-| `websocket` | Raw WebSocket handler, STOMP-free JSON envelope routing, handshake auth, participant registry |
-| `ot` | Server-authoritative Operational Transform engine: transform, apply, and broadcast canonical operations |
-| `snapshot` | Periodic document state snapshots every 50 operations; recovery uses latest snapshot plus operation replay |
-| `redis` | Distributed revision counters (`INCR`), per-session locks (`SET NX PX`), cross-instance pub/sub relay |
-| `execution` | Execution admission, queue management, Docker container lifecycle, sandbox I/O streaming, Redis result relay |
-
----
-
-## Design Decisions
-
-### server-authoritative OT
-
-The OT engine runs entirely on the server. Every submitted operation is transformed against all unacknowledged canonical operations before being applied. This guarantees that all connected clients converge to the same document state regardless of concurrent edit order. There is no client-side merge.
-
-### snapshot-plus-replay recovery
-
-The server creates a document snapshot at least every 50 canonical operations. On session recovery after restart or cache eviction, the engine loads the latest snapshot and replays only the operations that follow it. This bounds recovery cost without losing full history.
-
-### Redis for 2-3 instance coordination
-
-Redis handles two coordination roles: atomic revision counters (`INCR`) ensure that operation revisions are globally monotonic across instances, and pub/sub relay delivers every accepted operation to all backend instances so their local WebSocket clients stay in sync. Fire-and-forget semantics are acceptable for a 2-3 instance portfolio deployment. A relay gap forces a resync rather than silent divergence.
-
-### Docker-only sandboxing (execution contract)
-
-All code execution runs inside Docker containers with fixed resource and filesystem constraints:
-
-- Max memory: 256 MB
-- CPU quota: 0.5 vCPUs
-- Execution timeout: 10 seconds
-- Filesystem: read-only filesystem (root), writable workspace and `/tmp` are tmpfs mounts
-- User: non-root (`uid/gid 65534`)
-- Network: disabled
-
-There is no WASM, no in-process execution, and no user-configurable sandbox parameters. The Docker daemon must be accessible to the app container, which requires mounting the host socket at `/var/run/docker.sock`.
-
-### Fixed execution contract
-
-Only two languages are supported, with fixed runtime contracts:
-
-- **Python:** single `.py` file, `python:3.12-slim` image
-- **Java:** single-file package-less `Main` entrypoint (`class Main { ... }`), `eclipse-temurin:17-jdk-jammy` image, no package declaration permitted
-
-Session language is set at creation time and cannot be changed. Execution captures the canonical server-side document at enqueue time, not the client's local state.
-
-### Docker socket requirement
-
-The local Compose stack mounts the Docker daemon socket into the `app` container at `/var/run/docker.sock`. The `DOCKER_HOST` environment variable is set to `unix:///var/run/docker.sock` so `docker-java` auto-discovers it. For Docker Desktop, Linux, and Colima Compose runs, the default `DOCKER_SOCKET_PATH=/var/run/docker.sock` is correct. Override it only if the Docker daemon itself exposes its socket at a different path.
-
----
-
-## Extending This Project With Agentic Tools
-
-This repository was developed with `Codex`, `Claude`, and the `GSD` workflow. Those files are not part of the application runtime. They act as the project's continuation kit so future contributors can extend the system without re-discovering the architecture, constraints, and delivery history from scratch.
-
-### Purpose of the meta files
-
-- `AGENTS.md`: repo-level contract for agentic contributors, including workflow entry points, guardrails, and the authoritative planning files.
-- `CLAUDE.md`: compact generated project summary for tools that look for a fast context file before they inspect the full repo.
-- `.planning/`: project memory for goals, requirements, roadmap, state tracking, phase plans, validation notes, UAT records, and shipped summaries.
-- `.claude/`: local workspace settings for Claude-compatible tooling.
-
-### Recommended workflow for future expansion
-
-- Small docs or maintenance updates: `$gsd-quick "task description"`
-- Debugging and bug-fix work: `$gsd-debug "what is failing"`
-- New planned feature work: `$gsd-discuss-phase <n>`, `$gsd-plan-phase <n>`, `$gsd-execute-phase <n>`
-- Verification and closeout: `$gsd-verify-work <n>` and `$gsd-complete-milestone`
-- New large initiative, such as a frontend milestone: `$gsd-new-milestone`
-
-### Good next expansion targets
-
-- A browser frontend that consumes the existing REST and WebSocket contracts
-- Additional execution languages with fixed sandbox contracts
-- CI/CD, deployment automation, and observability
-- Admin or moderation workflows for collaborative sessions
-
-If you want to keep using agentic tools, leave these meta files in place or update your tooling to point at new locations. They are the repo's project memory and workflow contract, not just extra docs.
+[MIT](LICENSE) © Abdullah Chabaytah

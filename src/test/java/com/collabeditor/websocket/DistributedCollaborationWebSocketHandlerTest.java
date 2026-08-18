@@ -181,6 +181,15 @@ class DistributedCollaborationWebSocketHandlerTest {
         assertThat(appliedOnB.payload().get("text").asText()).isEqualTo("hello");
         assertThat(appliedOnB.payload().get("revision").asLong()).isEqualTo(1);
 
+        // The submitting client's operation id must survive the relay hop.
+        // Clients identify the echo of their own operation by this id rather
+        // than by author, so that two connections of the same user each apply
+        // the other's operations instead of discarding them.
+        assertThat(appliedOnB.payload().get("clientOperationId").asText()).isEqualTo("op-1");
+
+        CollaborationEnvelope appliedOnA = firstMessageOfType(socketA, "operation_applied").orElseThrow();
+        assertThat(appliedOnA.payload().get("clientOperationId").asText()).isEqualTo("op-1");
+
         assertThat(nodeA.registry.getRuntimeIfPresent(sessionId)).isPresent();
         assertThat(nodeA.registry.getRuntimeIfPresent(sessionId).orElseThrow().snapshot().document()).isEqualTo("hello");
         assertThat(nodeA.registry.getRuntimeIfPresent(sessionId).orElseThrow().snapshot().revision()).isEqualTo(1);
